@@ -2,13 +2,18 @@
 #
 # git-sweep — delete local branches already merged into the base branch.
 #
-# Safe by design: uses `git branch -d`, which refuses any branch that isn't
+# Safe by default: uses `git branch -d`, which refuses any branch that isn't
 # fully merged (never -D). Note: squash-merged branches are NOT caught — a
 # squash makes a brand-new commit, so the branch isn't an ancestor of the base.
-# Delete those by hand if your repo squash-merges.
+#
+# --force widens the net: it targets EVERY local branch (except the base and the
+# current one) and force-deletes with `git branch -D` — so it also clears
+# branches that were never PR'd/merged and squash-merged leftovers. This DELETES
+# UNMERGED WORK; use `-n` first to see exactly what it would remove.
 #
 # Usage:
-#   git sweep            delete local branches merged into the base
+#   git sweep            delete local branches merged into the base (safe, -d)
+#   git sweep -f         force: -D every local branch except base + current
 #   git sweep -n         dry run — list what would be deleted, change nothing
 #   git sweep -b NAME    base branch to compare against (default: origin's default)
 #   git sweep -h         show this help
@@ -19,22 +24,31 @@ usage() {
   cat <<'EOF'
 git sweep — delete local branches already merged into the base branch.
 
-Safe: uses `git branch -d`, which refuses anything not fully merged (never -D).
-Squash-merged branches are NOT caught (a squash isn't an ancestor of the base).
+Safe by default: uses `git branch -d`, which refuses anything not fully merged
+(never -D). Squash-merged branches are NOT caught (a squash isn't an ancestor).
+
+--force targets EVERY local branch except the base and current one and deletes
+with `git branch -D` — clearing never-PR'd / squash-merged / unmerged branches
+too. This deletes unmerged work; run with -n first.
 
 Usage:
-  git sweep          delete local branches merged into the base
+  git sweep          delete local branches merged into the base (safe, -d)
+  git sweep -f       force: -D every local branch except base + current
   git sweep -n       dry run — list what would be deleted, change nothing
   git sweep -b NAME  base branch to compare against (default: origin's default)
   git sweep -h       show this help
+
+  -f and -n combine: `git sweep -f -n` previews the force sweep.
 EOF
 }
 
 dry=0
+force=0
 base=""
 while [ $# -gt 0 ]; do
   case "$1" in
     -n|--dry-run) dry=1 ;;
+    -f|--force) force=1 ;;
     -b|--base) shift; base="${1:-}" ;;
     -h|--help) usage; exit 0 ;;
     *) echo "git sweep: unknown option '$1' (try -h)" >&2; exit 2 ;;
@@ -66,25 +80,46 @@ git fetch --prune --quiet 2>/dev/null || true
 
 current=$(git rev-parse --abbrev-ref HEAD)
 
-# Branches merged into the base, excluding the base itself and the current one.
+# Candidate branches: with --force, every local branch; otherwise only those
+# merged into the base. Either way we exclude the base and the current branch.
+if [ "$force" = 1 ]; then
+  list=$(git branch --format='%(refname:short)')
+else
+  list=$(git branch --merged "$base" --format='%(refname:short)')
+fi
+
 targets=""
 while IFS= read -r b; do
   [ -z "$b" ] && continue
   [ "$b" = "$base" ] && continue
   [ "$b" = "$current" ] && continue
   targets="$targets $b"
-done < <(git branch --merged "$base" --format='%(refname:short)')
+done <<EOF
+$list
+EOF
 targets=$(echo $targets)  # trim whitespace
 
 if [ -z "$targets" ]; then
-  echo "git sweep: nothing merged into '$base' to delete."
+  if [ "$force" = 1 ]; then
+    echo "git sweep: no other local branches to delete."
+  else
+    echo "git sweep: nothing merged into '$base' to delete."
+  fi
   exit 0
 fi
 
 if [ "$dry" = 1 ]; then
-  echo "Would delete (merged into '$base'):"
+  if [ "$force" = 1 ]; then
+    except="'$base'"
+    [ "$current" != "$base" ] && except="$except and '$current'"
+    echo "Would FORCE-delete (every local branch except $except):"
+  else
+    echo "Would delete (merged into '$base'):"
+  fi
   for b in $targets; do echo "  $b"; done
   exit 0
 fi
 
-for b in $targets; do git branch -d "$b"; done
+flag="-d"
+[ "$force" = 1 ] && flag="-D"
+for b in $targets; do git branch "$flag" "$b"; done
