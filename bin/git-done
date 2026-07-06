@@ -4,7 +4,8 @@
 #
 # The bookend to `git pr`: after you've checked out a PR's branch and finished
 # reviewing it, `git done` returns you to the base (origin's default, usually
-# main) and deletes the branch you were on.
+# main), fast-forwards it to the latest on origin, and deletes the branch you
+# were on.
 #
 # Safe by default: uses `git branch -d`, which refuses any branch that isn't
 # fully merged — so hopping back to main can't silently drop working code. The
@@ -26,7 +27,8 @@ usage() {
 git done — switch back to the base branch and delete the branch you left.
 
 The bookend to `git pr`: after reviewing a checked-out PR branch, return to the
-base (origin's default, usually main) and delete the branch you were on.
+base (origin's default, usually main), fast-forward it to origin, and delete the
+branch you were on.
 
 Safe by default: `git branch -d` refuses anything not fully merged, so hopping
 back to main can't silently drop working code. Squash-merged branches look
@@ -82,11 +84,22 @@ flag="-d"
 if [ "$dry" = 1 ]; then
   echo "Would run:"
   echo "  git switch $base"
+  echo "  git fetch origin --prune  &&  git merge --ff-only origin/$base"
   echo "  git branch $flag $current"
   exit 0
 fi
 
 git switch "$base"
+
+# Bring the base up to date so the just-merged PR is present locally — both so
+# you land on current main and so the -d merged-check below sees it. Best effort:
+# fast-forward only (never a merge commit); skip with a note if offline or the
+# local base has diverged from origin.
+if git show-ref --verify --quiet "refs/remotes/origin/$base"; then
+  git fetch --quiet origin --prune 2>/dev/null || true
+  git merge --ff-only "origin/$base" >/dev/null 2>&1 \
+    || echo "git done: couldn't fast-forward '$base' (diverged or offline) — continuing." >&2
+fi
 
 # Safe -d refuses unmerged (incl. squash-merged) branches — catch that and point
 # at --force rather than letting set -e abort on a bare git error.
