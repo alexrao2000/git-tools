@@ -1,0 +1,47 @@
+.TH GIT-PR 1 "2026-07-07" "git-tools" "Git Tools Manual"
+.SH NAME
+git-pr \- check out the branch for a GitHub pull request by number
+.SH SYNOPSIS
+.B git pr
+.I NUMBER
+.br
+.B git pr
+[\fB\-h\fR|\fB\-\-help\fR]
+.SH DESCRIPTION
+Check out the head branch of GitHub pull request #\fINUMBER\fR. If that branch
+already exists locally,
+.B git pr
+just switches to it; otherwise it fetches it first. For merged or closed PRs
+whose branch has been deleted from
+.IR origin ,
+it falls back to
+.IR refs/pull/<NUMBER>/head ,
+which GitHub keeps around, into a local branch of the same name.
+.PP
+Named
+.I git pr
+rather than
+.IR git switch :
+git always prefers its built-in
+.B switch
+over a script, so a custom
+.I git-switch
+could never run.
+.SH OPTIONS
+.TP
+.BR \-h ", " \-\-help
+Show usage and exit.
+.SH REQUIREMENTS
+Requires the GitHub CLI
+.RB ( gh ),
+authenticated for the repository
+.RB ( "gh auth login" ).
+.SH EXAMPLES
+.TP
+.B git pr 923
+Check out the head branch of PR #923.
+.SH SEE ALSO
+.BR git-done (1),
+.BR git-sync (1),
+.BR git-sweep (1),
+.BR gh (1)

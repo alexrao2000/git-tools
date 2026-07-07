@@ -24,7 +24,8 @@ place. Make sure the target dir is on your `PATH`.
 | `git pr <n>` | Check out the branch for GitHub PR `#n`. If it's already local, just switch; otherwise fetch it (falls back to `refs/pull/<n>/head` for merged/closed PRs). Needs the GitHub CLI (`gh`). |
 | `git done` | The bookend to `git pr`: switch back to the base (`origin/<default>`, usually main), **fast-forward it to origin** (so you land on an up-to-date main with the just-merged PR), and delete the branch you just left. Safe by default (`git branch -d`) so hopping back can't silently drop unmerged work — squash-merged branches look unmerged and are refused too, so pass `-f`/`--force` (`git branch -D`) when you know the branch is done. The fast-forward is best-effort: it's skipped with a note if you're offline or local base has diverged (never a merge commit). Guards against running on the base itself or a detached HEAD. `-n` dry-run, `-b NAME` base. |
 
-Each takes `-h` for help.
+Each takes `-h` for a short usage summary, or `--help` to open its full man
+page (installed to `share/man/man1` by `install.sh` and by Homebrew).
 
 ## Requirements
 

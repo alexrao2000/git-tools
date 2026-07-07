@@ -21,6 +21,17 @@ for f in "$here"/bin/git-*; do
   echo "linked  $name  →  $target/$name"
 done
 
+# Man pages: symlink into <target>/../share/man/man1, which `man` derives from a
+# bin dir on PATH (e.g. ~/.local/bin → ~/.local/share/man). That's what lets
+# `git <cmd> --help` open the page — git turns `--help` into `man git-<cmd>`.
+mandir="$(dirname "$target")/share/man/man1"
+mkdir -p "$mandir"
+for m in "$here"/man/git-*.1; do
+  name="$(basename "$m")"
+  ln -sf "$m" "$mandir/$name"
+  echo "linked  $name  →  $mandir/$name"
+done
+
 case ":$PATH:" in
   *":$target:"*) ;;
   *)
@@ -52,4 +63,4 @@ else
 fi
 
 echo
-echo "Done. Try:  git sweep -h"
+echo "Done. Try:  git sweep -h   (or full man page: git sweep --help)"

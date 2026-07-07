@@ -1,0 +1,56 @@
+.TH GIT-SYNC 1 "2026-07-07" "git-tools" "Git Tools Manual"
+.SH NAME
+git-sync \- rebase the current branch onto the latest base, then push
+.SH SYNOPSIS
+.B git sync
+[\fB\-a\fR|\fB\-\-all\fR]
+[\fB\-b\fR|\fB\-\-base\fR \fINAME\fR]
+[\fB\-n\fR|\fB\-\-dry\-run\fR]
+[\fB\-h\fR|\fB\-\-help\fR]
+.SH DESCRIPTION
+Rebase the current branch onto the latest base and push it:
+.B git fetch
+\(->
+.B git rebase origin/<base>
+\(->
+.BR "git push \-\-force\-with\-lease" .
+Force-with-lease is used because a rebase rewrites history; it still refuses to
+clobber remote commits you have not fetched. The command requires a clean tree
+and refuses to run on the base branch itself; on rebase conflicts it stops
+cleanly with instructions.
+.PP
+The base defaults to origin's default branch.
+.SH OPTIONS
+.TP
+.BR \-a ", " \-\-all
+Sweep every local branch in one pass: fast-forward the local base, delete
+branches already merged into
+.IR origin/<base> ,
+and rebase + push the rest. Branches that hit rebase conflicts are aborted
+untouched and listed to fix by hand. Never-pushed branches are rebased but not
+pushed. Squash-merged branches look unmerged, so they are rebased rather than
+pruned \(em delete those with
+.BR "git sweep \-f" .
+.TP
+.BR \-b ", " \-\-base " " \fINAME\fR
+Use
+.I origin/NAME
+as the base instead of origin's default.
+.TP
+.BR \-n ", " \-\-dry\-run
+Print what would happen without changing anything.
+.TP
+.BR \-h ", " \-\-help
+Show usage and exit.
+.SH EXAMPLES
+.TP
+.B git sync
+Rebase the current branch onto origin's default and push.
+.TP
+.B git sync \-\-all
+Prune merged branches and rebase/push all the rest.
+.SH SEE ALSO
+.BR git-sweep (1),
+.BR git-pr (1),
+.BR git-done (1),
+.BR git-rebase (1)

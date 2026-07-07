@@ -1,0 +1,75 @@
+.TH GIT-DONE 1 "2026-07-07" "git-tools" "Git Tools Manual"
+.SH NAME
+git-done \- switch back to the base branch and delete the branch you left
+.SH SYNOPSIS
+.B git done
+[\fB\-f\fR|\fB\-\-force\fR]
+[\fB\-b\fR|\fB\-\-base\fR \fINAME\fR]
+[\fB\-n\fR|\fB\-\-dry\-run\fR]
+[\fB\-h\fR|\fB\-\-help\fR]
+.SH DESCRIPTION
+The bookend to
+.BR git-pr (1).
+After you have checked out a pull request's branch and finished reviewing it,
+.B git done
+returns you to the base branch (origin's default, usually
+.IR main ),
+fast-forwards it to the latest on
+.IR origin ,
+and deletes the branch you were on.
+.PP
+The fast-forward is best effort: it uses
+.B git merge \-\-ff\-only
+so it never creates a merge commit, and it is skipped with a note if you are
+offline or the local base has diverged from
+.IR origin .
+Refreshing the base first also means the merged-check below is judged against an
+up-to-date base.
+.PP
+Deleting is safe by default:
+.B git branch \-d
+refuses any branch that is not fully merged, so hopping back to the base cannot
+silently drop working code. Note that squash-merged branches look unmerged (a
+squash is not an ancestor of the base) and are refused too; use
+.B \-\-force
+for those.
+.SH OPTIONS
+.TP
+.BR \-f ", " \-\-force
+Force-delete the branch with
+.BR "git branch \-D" ,
+deleting it even when it is not fully merged. Use for squash-merged or otherwise
+finished branches that the default
+.B \-d
+refuses.
+.TP
+.BR \-b ", " \-\-base " " \fINAME\fR
+Use
+.I NAME
+as the base branch instead of origin's default.
+.TP
+.BR \-n ", " \-\-dry\-run
+Print what would happen \(em the switch, fast-forward, and delete \(em without
+changing anything.
+.TP
+.BR \-h ", " \-\-help
+Show usage and exit.
+.SH EXAMPLES
+.TP
+.B git pr 923 && git done
+Check out PR #923, review it, then return to main and delete its branch.
+.TP
+.B git done \-f
+Force-delete the current branch (e.g. after it was squash-merged).
+.TP
+.B git done \-n
+Preview the actions without running them.
+.SH EXIT STATUS
+Exits nonzero if not in a git repository, on a detached HEAD, already on the
+base branch, the base is not found, or the branch is refused by a safe delete.
+.SH SEE ALSO
+.BR git-pr (1),
+.BR git-sync (1),
+.BR git-sweep (1),
+.BR git-branch (1),
+.BR git-switch (1)

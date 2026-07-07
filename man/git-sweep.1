@@ -1,0 +1,52 @@
+.TH GIT-SWEEP 1 "2026-07-07" "git-tools" "Git Tools Manual"
+.SH NAME
+git-sweep \- delete local branches already merged into the base branch
+.SH SYNOPSIS
+.B git sweep
+[\fB\-f\fR|\fB\-\-force\fR]
+[\fB\-b\fR|\fB\-\-base\fR \fINAME\fR]
+[\fB\-n\fR|\fB\-\-dry\-run\fR]
+[\fB\-h\fR|\fB\-\-help\fR]
+.SH DESCRIPTION
+Delete local branches already merged into the base branch. It fetches first and
+compares against the base's remote tip
+.RI ( origin/<base> ),
+so it works without pulling the base locally and from any branch you are on \(em
+a branch merged upstream is swept even if your local base is stale.
+.PP
+Safe by default: it uses
+.BR "git branch \-d" ,
+which refuses any branch that is not fully merged. Squash-merged branches are
+not caught, because a squash is not an ancestor of the base.
+.SH OPTIONS
+.TP
+.BR \-f ", " \-\-force
+Target every local branch except the base and the current one and force-delete
+with
+.BR "git branch \-D" .
+This also clears never-PR'd and squash-merged leftovers.
+.B "It deletes unmerged work"
+\(em preview with
+.B \-n
+first.
+.TP
+.BR \-b ", " \-\-base " " \fINAME\fR
+Base branch to compare against instead of origin's default.
+.TP
+.BR \-n ", " \-\-dry\-run
+List what would be deleted without changing anything.
+.TP
+.BR \-h ", " \-\-help
+Show usage and exit.
+.SH EXAMPLES
+.TP
+.B git sweep
+Delete local branches merged into the base (safe).
+.TP
+.B git sweep \-f \-n
+Preview a force sweep of every local branch.
+.SH SEE ALSO
+.BR git-sync (1),
+.BR git-pr (1),
+.BR git-done (1),
+.BR git-branch (1)
