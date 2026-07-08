@@ -2,8 +2,14 @@
 #
 # git-pr — check out the branch for a GitHub PR by number.
 #
-# If that PR's branch already exists locally, just switch to it; otherwise fetch
-# it first. Requires the GitHub CLI (`gh`), authenticated for this repo.
+# One flagless command: given a PR number, switch to its branch if you already
+# have it, otherwise fetch it first and switch.
+#
+# It resolves the PR number → branch offline when it can: branches checked out
+# by a previous `git pr` are stamped with `branch.<name>.gtools-pr <n>`, so a
+# repeat `git pr <n>` switches instantly with no network. Only the first time
+# (or for a branch you got some other way) does it ask `gh pr view` for the
+# name — and it fetches via `gh` only when the branch isn't already local.
 #
 # (Named `git pr`, not `git switch`: git always prefers its built-in `switch`
 # over a script, so a custom `git-switch` could never run.)
@@ -18,8 +24,10 @@ usage() {
   cat <<'EOF'
 git pr — check out the branch for a GitHub PR by number.
 
-If the PR's branch exists locally, switch to it; otherwise fetch it first.
-Requires the GitHub CLI (gh).
+Switch to the PR's branch if it's already local, otherwise fetch it first and
+switch. Branches are stamped with their PR number, so a repeat `git pr <n>` is
+offline; the GitHub CLI (gh) is used only to resolve/fetch a branch you don't
+already have.
 
 Usage:
   git pr 923    check out the head branch of PR #923
@@ -37,10 +45,20 @@ echo "$num" | grep -qE '^[0-9]+$' || {
 
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
   echo "git pr: not inside a git repository" >&2; exit 1; }
+
+# 1) Offline fast path — a local branch already stamped with this PR number.
+#    Switch straight to it, no `gh`, no network.
+stamped=$(git config --get-regexp '^branch\..*\.gtools-pr$' 2>/dev/null \
+  | awk -v n="$num" '$2 == n { print $1; exit }' \
+  | sed -E 's/^branch\.(.*)\.gtools-pr$/\1/') || true
+if [ -n "${stamped:-}" ] && git show-ref --verify --quiet "refs/heads/$stamped"; then
+  git switch "$stamped"
+  exit 0
+fi
+
+# 2) Not stamped — ask gh for the head branch name.
 command -v gh >/dev/null 2>&1 || {
   echo "git pr: needs the GitHub CLI ('gh') — https://cli.github.com" >&2; exit 1; }
-
-# Resolve PR number → its head branch name.
 branch=$(gh pr view "$num" --json headRefName -q .headRefName 2>/dev/null) || {
   echo "git pr: couldn't find PR #$num in this repo" >&2; exit 1; }
 [ -n "$branch" ] || { echo "git pr: PR #$num has no head branch" >&2; exit 1; }
@@ -59,6 +77,6 @@ else
   fi
 fi
 
-# Stamp the branch with its PR number so `git here $num` can switch back to it
-# offline later, without a `gh` round-trip.
+# Stamp the branch with its PR number so the next `git pr $num` resolves it
+# offline, without a `gh` round-trip.
 git config "branch.$branch.gtools-pr" "$num" 2>/dev/null || true

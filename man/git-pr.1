@@ -18,6 +18,15 @@ it falls back to
 .IR refs/pull/<NUMBER>/head ,
 which GitHub keeps around, into a local branch of the same name.
 .PP
+Branches checked out this way are stamped with their PR number
+.RB ( "branch.<name>.gtools-pr" ),
+so a later
+.B git pr
+for the same number resolves the branch offline and switches to it with no
+.B gh
+call. The GitHub CLI is consulted only to resolve or fetch a branch you do not
+already have.
+.PP
 Named
 .I git pr
 rather than
@@ -35,13 +44,13 @@ Show usage and exit.
 Requires the GitHub CLI
 .RB ( gh ),
 authenticated for the repository
-.RB ( "gh auth login" ).
+.RB ( "gh auth login" ),
+except when switching to an already-stamped branch, which needs no network.
 .SH EXAMPLES
 .TP
 .B git pr 923
 Check out the head branch of PR #923.
 .SH SEE ALSO
-.BR git-here (1),
 .BR git-done (1),
 .BR git-sync (1),
 .BR git-sweep (1),
