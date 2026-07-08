@@ -58,3 +58,7 @@ else
     git switch "$branch"
   fi
 fi
+
+# Stamp the branch with its PR number so `git here $num` can switch back to it
+# offline later, without a `gh` round-trip.
+git config "branch.$branch.gtools-pr" "$num" 2>/dev/null || true
