@@ -14,10 +14,14 @@ compares against the base's remote tip
 so it works without pulling the base locally and from any branch you are on \(em
 a branch merged upstream is swept even if your local base is stale.
 .PP
-Safe by default: it uses
+Safe by default: it only deletes a branch whose tip is already an ancestor of
+the base's remote tip (verified with
+.BR "git merge-base \-\-is-ancestor" ),
+so no unmerged work is lost. It deliberately avoids a bare
 .BR "git branch \-d" ,
-which refuses any branch that is not fully merged. Squash-merged branches are
-not caught, because a squash is not an ancestor of the base.
+which rechecks mergedness against your current branch and so wrongly refuses
+branches merged upstream when the local base is stale. Squash-merged branches
+are not caught, because a squash is not an ancestor of the base.
 .SH OPTIONS
 .TP
 .BR \-f ", " \-\-force

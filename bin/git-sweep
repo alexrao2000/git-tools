@@ -6,9 +6,12 @@
 # works without pulling the base locally and from any branch you're on — a branch
 # merged upstream is swept even if your local main is stale.
 #
-# Safe by default: uses `git branch -d`, which refuses any branch that isn't
-# fully merged (never -D). Note: squash-merged branches are NOT caught — a
-# squash makes a brand-new commit, so the branch isn't an ancestor of the base.
+# Safe by default: only deletes branches whose tip is already an ancestor of the
+# base's remote tip (verified with `git merge-base --is-ancestor`), so it can't
+# drop unmerged work. Unlike a bare `git branch -d` it isn't fooled by a stale
+# local base — `-d` rechecks against your current branch, which wrongly refuses
+# branches merged upstream when local <base> lags. Note: squash-merged branches
+# are NOT caught — a squash makes a new commit, so it isn't an ancestor.
 #
 # --force widens the net: it targets EVERY local branch (except the base and the
 # current one) and force-deletes with `git branch -D` — so it also clears
@@ -28,8 +31,10 @@ usage() {
   cat <<'EOF'
 git sweep — delete local branches already merged into the base branch.
 
-Safe by default: uses `git branch -d`, which refuses anything not fully merged
-(never -D). Squash-merged branches are NOT caught (a squash isn't an ancestor).
+Safe by default: only deletes branches already merged into the base's remote
+tip (verified with merge-base), so it never drops unmerged work — and unlike a
+bare `git branch -d` it isn't fooled by a stale local base. Squash-merged
+branches are NOT caught (a squash isn't an ancestor).
 
 --force targets EVERY local branch except the base and current one and deletes
 with `git branch -D` — clearing never-PR'd / squash-merged / unmerged branches
@@ -138,6 +143,20 @@ if [ "$dry" = 1 ]; then
   exit 0
 fi
 
-flag="-d"
-[ "$force" = 1 ] && flag="-D"
-for b in $targets; do git branch "$flag" "$b"; done
+if [ "$force" = 1 ]; then
+  # Force sweep: delete every targeted branch outright (may include unmerged work).
+  for b in $targets; do git branch -D "$b"; done
+else
+  # Safe sweep: each target is already an ancestor of $mergeref (from --merged),
+  # so deleting it can't drop unmerged work. We re-verify against $mergeref and
+  # use -D rather than -d on purpose: `git branch -d` rechecks mergedness against
+  # the *current* branch (local HEAD), which wrongly refuses branches merged
+  # upstream when your local base is stale — the very case sweep exists to handle.
+  for b in $targets; do
+    if git merge-base --is-ancestor "$b" "$mergeref"; then
+      git branch -D "$b"
+    else
+      echo "git sweep: skipping '$b' — not merged into '$mergeref'." >&2
+    fi
+  done
+fi
