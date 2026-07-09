@@ -1,0 +1,74 @@
+.TH GIT-WSWEEP 1 "2026-07-09" "git-tools" "Git Tools Manual"
+.SH NAME
+git-wsweep \- remove worktrees whose HEAD is already merged into the base branch
+.SH SYNOPSIS
+.B git wsweep
+[\fB\-f\fR|\fB\-\-force\fR]
+[\fB\-b\fR|\fB\-\-base\fR \fINAME\fR]
+[\fB\-n\fR|\fB\-\-dry\-run\fR]
+[\fB\-h\fR|\fB\-\-help\fR]
+.SH DESCRIPTION
+The worktree analogue of
+.BR git-sweep (1).
+Where
+.B git sweep
+deletes merged
+.IR branches ,
+.B git wsweep
+removes merged
+.I worktrees
+\(em the linked working directories \(em and
+.B keeps
+the branches. Drop throwaway per-task checkouts and still
+.BR "git switch" / "git pr"
+the branch later from your main worktree. Removing a worktree never deletes its
+branch; run
+.BR git-sweep (1)
+afterwards if you also want the merged branches gone.
+.PP
+Like git-sweep, it fetches first and judges "merged" against the base's remote
+tip
+.RI ( origin/<base> ),
+so it works without pulling the base locally and from any worktree.
+.PP
+Safe by default: a worktree is removed only when its HEAD is already an ancestor
+of the base's remote tip (verified with
+.BR "git merge-base \-\-is-ancestor" ),
+so no unmerged work is lost. Reachability is judged by the worktree's HEAD
+commit, so both branch-backed and detached worktrees are handled. The main
+worktree (always listed first) and the worktree you are currently in are never
+touched.
+.SH OPTIONS
+.TP
+.BR \-f ", " \-\-force
+Remove every worktree except the main one and the current one, regardless of
+merge status, with
+.BR "git worktree remove \-\-force" .
+This also drops worktrees that have uncommitted changes, discarding those
+changes \(em the branches themselves survive.
+.B "It discards uncommitted work"
+\(em preview with
+.B \-n
+first.
+.TP
+.BR \-b ", " \-\-base " " \fINAME\fR
+Base branch to compare against instead of origin's default.
+.TP
+.BR \-n ", " \-\-dry\-run
+List what would be removed without changing anything.
+.TP
+.BR \-h ", " \-\-help
+Show usage and exit.
+.SH EXAMPLES
+.TP
+.B git wsweep
+Remove worktrees whose HEAD is merged into the base (safe); keep the branches.
+.TP
+.B git wsweep \-f \-n
+Preview a force sweep of every worktree except main and current.
+.SH SEE ALSO
+.BR git-sweep (1),
+.BR git-sync (1),
+.BR git-pr (1),
+.BR git-done (1),
+.BR git-worktree (1)
