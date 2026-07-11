@@ -6,6 +6,9 @@
 # (force-with-lease because a rebase rewrites history; it still refuses to
 # clobber remote commits you haven't pulled).
 #
+# On the base branch itself it acts like a safe pull instead: git fetch → git
+# rebase origin/<base> (fast-forwards when you're only behind), and never pushes.
+#
 # With --all, sweeps EVERY local branch in one pass: prunes the ones already
 # merged into the base, rebases + pushes the rest, and cleanly skips any that
 # hit rebase conflicts (aborting them untouched) so you can resolve those by
@@ -35,8 +38,12 @@ Single branch (default): git fetch → git rebase origin/<base> → git push
   rebased locally but not pushed. Squash-merged branches look unmerged, so they
   get rebased, not pruned.
 
+On the base branch: acts as a safe pull — git fetch → git rebase origin/<base>
+  (fast-forwards when only behind), no push.
+
 Usage:
   git sync            rebase the current branch onto origin's default, then push
+                      (on the base branch: pull it — fetch + rebase, no push)
   git sync --all      prune merged branches + rebase/push all the rest (-a)
   git sync -b NAME    use origin/NAME as the base instead
   git sync -n         dry run — print what it would do, change nothing
@@ -175,9 +182,33 @@ fi
 # Single-branch (default).
 # --------------------------------------------------------------------------
 
-# Don't rebase the base branch onto itself / push to a protected branch.
-[ "$current" != "$base" ] || {
-  echo "git sync: you're on '$base' — switch to a feature branch first" >&2; exit 1; }
+# On the base branch itself, `git sync` acts like a safe pull: fetch and bring
+# local <base> in line with origin/<base>, replaying any local commits on top
+# (rebase → fast-forward when you're only behind). It never pushes — you don't
+# force-push the base, and updating it locally is the whole point here.
+if [ "$current" = "$base" ]; then
+  git show-ref --verify --quiet "refs/remotes/origin/$base" || {
+    echo "git sync: no 'origin/$base' to sync from" >&2; exit 1; }
+  if [ "$dry" = 1 ]; then
+    echo "Would run, on base '$base':"
+    echo "  git fetch origin --prune"
+    echo "  git rebase origin/$base   (fast-forwards if you're only behind)"
+    echo "  (no push — syncing the base only updates it locally)"
+    exit 0
+  fi
+  git fetch origin --prune
+  if [ "$(git rev-parse HEAD)" = "$(git rev-parse "origin/$base")" ]; then
+    echo "git sync: '$base' is already up to date with origin/$base."
+    exit 0
+  fi
+  if ! git rebase "origin/$base"; then
+    echo "git sync: rebase hit conflicts pulling '$base'. Resolve them, then:" >&2
+    echo "    git rebase --continue   (or: git rebase --abort)" >&2
+    exit 1
+  fi
+  echo "git sync: '$base' synced with origin/$base (local only; not pushed)."
+  exit 0
+fi
 
 if [ "$dry" = 1 ]; then
   echo "Would run, on branch '$current':"

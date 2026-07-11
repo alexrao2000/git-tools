@@ -15,9 +15,15 @@ Rebase the current branch onto the latest base and push it:
 \(->
 .BR "git push \-\-force\-with\-lease" .
 Force-with-lease is used because a rebase rewrites history; it still refuses to
-clobber remote commits you have not fetched. The command requires a clean tree
-and refuses to run on the base branch itself; on rebase conflicts it stops
-cleanly with instructions.
+clobber remote commits you have not fetched. The command requires a clean tree;
+on rebase conflicts it stops cleanly with instructions.
+.PP
+On the base branch itself,
+.B git sync
+acts as a safe pull instead: it fetches and rebases local <base> onto
+.IR origin/<base> ,
+fast-forwarding when you are only behind and replaying any local commits on top
+when the two have diverged. It never pushes the base.
 .PP
 The base defaults to origin's default branch.
 .SH OPTIONS
