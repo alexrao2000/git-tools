@@ -1,0 +1,36 @@
+.TH GIT-PRS 1 "2026-07-08" "git-tools" "Git Tools Manual"
+.SH NAME
+git-prs \- print the URL of every open pull request you have authored
+.SH SYNOPSIS
+.B git prs
+.br
+.B git prs
+[\fB\-h\fR|\fB\-\-help\fR]
+.SH DESCRIPTION
+Print one URL per line \(em nothing else \(em for every open pull request whose
+author is you, across all of GitHub. The plain, one-link-per-line output is easy
+to skim or pipe into another command.
+.PP
+Your GitHub login is resolved from the authenticated
+.B gh
+session, so there is nothing to configure.
+.SH OPTIONS
+.TP
+.BR \-h ", " \-\-help
+Show usage and exit.
+.SH REQUIREMENTS
+Requires the GitHub CLI
+.RB ( gh ),
+authenticated
+.RB ( "gh auth login" ).
+.SH EXAMPLES
+.TP
+.B git prs
+Print a link for each of your open PRs.
+.TP
+.B git prs | pbcopy
+Copy the list of links to the clipboard.
+.SH SEE ALSO
+.BR git-pr (1),
+.BR git-done (1),
+.BR gh (1)

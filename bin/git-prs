@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+#
+# git-prs — print the URL of every open pull request you have authored.
+#
+# One link per line, nothing else — easy to skim or pipe. Searches all of
+# GitHub for open PRs whose author is you. Requires the GitHub CLI (`gh`).
+#
+# Usage:
+#   git prs        print a link for each of your open PRs
+#   git prs -h     show this help
+#
+set -euo pipefail
+
+case "${1:-}" in
+  -h|--help)
+    cat <<'EOF'
+git prs — print the URL of every open pull request you have authored.
+
+One link per line (nothing else). Requires the GitHub CLI (gh).
+
+Usage:
+  git prs      print a link for each of your open PRs
+  git prs -h   show this help
+EOF
+    exit 0 ;;
+esac
+
+command -v gh >/dev/null 2>&1 || {
+  echo "git prs: needs the GitHub CLI ('gh') — https://cli.github.com" >&2; exit 1; }
+
+me="$(gh api user --jq .login 2>/dev/null || true)"
+[ -n "$me" ] || {
+  echo "git prs: gh isn't authenticated — run 'gh auth login' (or 'gh auth refresh')" >&2
+  exit 1; }
+
+gh search prs --author="$me" --state open --limit 100 --json url --jq '.[].url'
