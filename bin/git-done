@@ -14,6 +14,8 @@
 # is done, pass --force (`git branch -D`) to delete it regardless.
 #
 # On a detached HEAD there's nothing to delete, so it just switches back to base.
+# If you're already on the base, there's also nothing to delete — it just pulls
+# (fetches and fast-forwards the base to origin).
 #
 # Usage:
 #   git done            switch to the base branch, delete the branch you left (-d)
@@ -34,6 +36,25 @@ fi
 step() { printf '%s✓%s %s\n' "$_ok" "$_off" "$1"; }
 warn() { printf '%s!%s %s\n' "$_warn" "$_off" "$1" >&2; }
 
+# Fetch and fast-forward <base> to origin/<base>, narrating the result. Best
+# effort: fast-forward only (never a merge commit), note it if diverged/offline.
+_ff_base() {
+  local base="$1" behind noun
+  git show-ref --verify --quiet "refs/remotes/origin/$base" || return 0
+  git fetch --quiet origin --prune 2>/dev/null || true
+  behind=$(git rev-list --count "$base..origin/$base" 2>/dev/null || echo 0)
+  if [ "$behind" -gt 0 ]; then
+    if [ "$behind" = 1 ]; then noun=commit; else noun=commits; fi
+    if git merge --ff-only "origin/$base" >/dev/null 2>&1; then
+      step "fast-forwarded $base to origin/$base ${_dim}(+$behind $noun)${_off}"
+    else
+      warn "couldn't fast-forward $base (diverged or offline) — left as is"
+    fi
+  else
+    step "$base already up to date with origin/$base"
+  fi
+}
+
 usage() {
   cat <<'EOF'
 git done — switch back to the base branch and delete the branch you left.
@@ -45,6 +66,9 @@ branch you were on.
 Safe by default: `git branch -d` refuses anything not fully merged, so hopping
 back to main can't silently drop working code. Squash-merged branches look
 unmerged to -d and are refused too — use --force (`git branch -D`) for those.
+
+Already on the base branch? There's nothing to delete, so it just pulls (fetch
++ fast-forward the base to origin).
 
 Usage:
   git done          switch to the base branch, delete the branch you left (-d)
@@ -85,12 +109,21 @@ if [ -z "$base" ]; then
   [ -n "$base" ] || base=main
 fi
 
-[ "$current" != "$base" ] || {
-  echo "git done: you're already on '$base' — nothing to delete" >&2; exit 1; }
-
 git show-ref --verify --quiet "refs/heads/$base" \
   || git show-ref --verify --quiet "refs/remotes/origin/$base" || {
   echo "git done: base '$base' not found locally or on origin" >&2; exit 1; }
+
+# Already on the base: there's no branch to delete, so just bring it up to date
+# — fetch and fast-forward it to origin (a pull), then stop.
+if [ "$current" = "$base" ]; then
+  if [ "$dry" = 1 ]; then
+    echo "Would run (on base '$base'):"
+    echo "  git fetch origin --prune  &&  git merge --ff-only origin/$base"
+    exit 0
+  fi
+  _ff_base "$base"
+  exit 0
+fi
 
 flag="-d"
 [ "$force" = 1 ] && flag="-D"
@@ -111,22 +144,8 @@ fi
 git switch --quiet "$base"
 step "switched to $base"
 
-# --- 2) fast-forward base to origin so you land on current main. Best effort:
-# fast-forward only (never a merge commit); note it if offline or diverged.
-if git show-ref --verify --quiet "refs/remotes/origin/$base"; then
-  git fetch --quiet origin --prune 2>/dev/null || true
-  behind=$(git rev-list --count "$base..origin/$base" 2>/dev/null || echo 0)
-  if [ "$behind" -gt 0 ]; then
-    if [ "$behind" = 1 ]; then noun=commit; else noun=commits; fi
-    if git merge --ff-only "origin/$base" >/dev/null 2>&1; then
-      step "fast-forwarded $base to origin/$base ${_dim}(+$behind $noun)${_off}"
-    else
-      warn "couldn't fast-forward $base (diverged or offline) — left as is"
-    fi
-  else
-    step "$base already up to date with origin/$base"
-  fi
-fi
+# --- 2) fast-forward base to origin so you land on current main. ---
+_ff_base "$base"
 
 if [ "$detached" = 1 ]; then
   step "was on a detached HEAD — nothing to delete"

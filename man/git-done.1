@@ -38,6 +38,11 @@ On a detached HEAD there is no branch to delete, so
 .B git done
 just switches back to the base (and fast-forwards it), then reports that there
 was nothing to delete.
+.PP
+If you are already on the base branch, there is likewise nothing to delete, so
+.B git done
+simply pulls it \(em fetches and fast-forwards the base to
+.IR origin .
 .SH OPTIONS
 .TP
 .BR \-f ", " \-\-force
@@ -70,8 +75,8 @@ Force-delete the current branch (e.g. after it was squash-merged).
 .B git done \-n
 Preview the actions without running them.
 .SH EXIT STATUS
-Exits nonzero if not in a git repository, already on the base branch, the base
-is not found, or the branch is refused by a safe delete.
+Exits nonzero if not in a git repository, the base is not found, or the branch
+is refused by a safe delete.
 .SH SEE ALSO
 .BR git-pr (1),
 .BR git-sync (1),
