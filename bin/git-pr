@@ -5,7 +5,7 @@
 #   git pr              list your open PRs in this repo, as "<url> -- <title>"
 #   git pr --no-title   just the URLs, one per line (easy to pipe)   [-nt]
 #   git pr <n|branch>   check out that PR's branch, updated to the PR's latest
-#   git pr --merge-all  merge every mergeable open PR (see below)   [-ma; --yes to act]
+#   git pr --merge-all  merge every mergeable open PR (see below)   [-ma]
 #
 # The checkout argument can be a PR number, a head branch name, or a PR URL —
 # whatever `gh` can resolve to a pull request. Listing uses
@@ -16,12 +16,11 @@
 # falls back to a local branch (the stamped one for a number, or the named
 # branch itself), switched to as-is (not updated).
 #
-# --merge-all is different from the rest of this suite: it touches shared remote
-# state (it merges PRs on GitHub), so it is SAFE BY DEFAULT — it only prints a
-# plan and does nothing until you pass --yes. There is no --force; anything
-# blocked by branch protection (required reviews/checks) is always left alone.
-# It only ever considers PRs YOU authored — merging someone else's PR isn't
-# this command's call to make.
+# --merge-all touches shared remote state (it merges PRs on GitHub), but it
+# only ever considers PRs YOU authored — merging someone else's PR isn't this
+# command's call to make — so it acts by default; pass -n/--dry-run to preview
+# first. There is no --force; anything blocked by branch protection (required
+# reviews/checks) is always left alone, never bypassed.
 #
 # --merge-all order: it computes which open PRs touch overlapping files and
 # processes the least-entangled ones first (fewest other PRs sharing a changed
@@ -53,8 +52,8 @@
 #   git pr                     list open PRs you authored ("<url> -- <title>")
 #   git pr -nt                 list them as bare URLs (--no-title)
 #   git pr <n|branch>          check out a PR by number, branch name, or URL
-#   git pr --merge-all         dry run: your open PRs, merge order + what would happen (-ma)
-#   git pr --merge-all --yes   actually merge (-y)
+#   git pr --merge-all         merge every mergeable PR you authored (-ma)
+#   git pr --merge-all -n      preview the merge order instead (--dry-run)
 #   git pr --merge-all --method squash|merge|rebase   override the merge method
 #   git pr -h                  show this help
 #
@@ -79,20 +78,19 @@ git pr — list your open PRs, check one out, or merge them all.
   git pr <n|branch>          check out that PR (by number, branch name, or URL),
                              updated to the PR's latest
   git pr --merge-all         merge every mergeable PR YOU authored, rebasing
-                             what needs it, skipping what needs a human —
-                             dry run by default (-ma)
-  git pr --merge-all --yes   actually merge (-y)
+                             what needs it, skipping what needs a human (-ma)
+  git pr --merge-all -n      preview instead: show the plan, change nothing
   git pr -h                  show this help
 
 Uses the GitHub CLI (gh). Checkout falls back to refs/pull/<n>/head for deleted
 branches, or (offline) to the local branch.
 
---merge-all (-ma) only ever considers PRs you authored, and is safe by
-default: it prints a plan and touches nothing until --yes. Branch protection
-(required reviews/checks) is never bypassed. PRs are merged in an order chosen
-to minimize conflicts — the least-entangled PRs (fewest other open PRs
-touching the same files) go first. A PR needing a rebase gets one, in a
-scratch worktree that never touches your current branch; if the rebase itself
+--merge-all (-ma) only ever considers PRs you authored — merging someone
+else's PR isn't this command's call to make. Branch protection (required
+reviews/checks) is never bypassed. PRs are merged in an order chosen to
+minimize conflicts — the least-entangled PRs (fewest other open PRs touching
+the same files) go first. A PR needing a rebase gets one, in a scratch
+worktree that never touches your current branch; if the rebase itself
 conflicts, that PR is skipped for you to resolve by hand.
 
   git pr --merge-all --method squash|merge|rebase   override the merge method
@@ -103,15 +101,14 @@ EOF
 id=""
 notitle=0
 mergeall=0
-yes=0
+dry=0
 method=""
 while [ $# -gt 0 ]; do
   case "$1" in
     -h|--help) usage; exit 0 ;;
     -nt|--no-title) notitle=1 ;;
     --merge-all|-ma) mergeall=1 ;;
-    -y|--yes) yes=1 ;;
-    -n|--dry-run) yes=0 ;;
+    -n|--dry-run) dry=1 ;;
     --method) shift; method="${1:-}" ;;
     -*) echo "git pr: unknown option '$1' (try -h)" >&2; exit 2 ;;
     *) id="$1" ;;   # PR number, branch name, or URL
@@ -119,8 +116,8 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-if [ "$mergeall" = 0 ] && { [ "$yes" = 1 ] || [ -n "$method" ]; }; then
-  echo "git pr: --yes/--method only apply with --merge-all" >&2; exit 2
+if [ "$mergeall" = 0 ] && { [ "$dry" = 1 ] || [ -n "$method" ]; }; then
+  echo "git pr: --dry-run/--method only apply with --merge-all" >&2; exit 2
 fi
 if [ "$mergeall" = 1 ] && [ -n "$id" ]; then
   echo "git pr: --merge-all doesn't take a PR number or branch" >&2; exit 2
@@ -251,7 +248,7 @@ if [ "$mergeall" = 1 ]; then
 
     case "$status" in
       CLEAN|UNSTABLE)
-        if [ "$yes" = 0 ]; then
+        if [ "$dry" = 1 ]; then
           plan+=("#$num $title -- merge ($method)"); continue
         fi
         if err="$(gh pr merge "$num" "$merge_flag" 2>&1)"; then
@@ -263,7 +260,7 @@ if [ "$mergeall" = 1 ]; then
         fi
         ;;
       BEHIND|DIRTY)
-        if [ "$yes" = 0 ]; then
+        if [ "$dry" = 1 ]; then
           plan+=("#$num $title -- rebase onto $base, then merge"); continue
         fi
         rebase_and_push "$head" "$base"; rc=$?
@@ -273,7 +270,7 @@ if [ "$mergeall" = 1 ]; then
               step "rebased + merged #$num ${_dim}($title)${_off}"
               merged+=("#$num $title")
             else
-              warn "rebased #$num but merge didn't go through yet — rerun git pr --merge-all --yes to retry"
+              warn "rebased #$num but merge didn't go through yet — rerun git pr --merge-all to retry"
               skipped+=("#$num $title -- rebased and pushed; merge pending (rerun to retry)")
             fi
             ;;
@@ -286,12 +283,12 @@ if [ "$mergeall" = 1 ]; then
         esac
         ;;
       BLOCKED)
-        [ "$yes" = 0 ] && { plan+=("#$num $title -- skip: blocked (required checks/reviews)"); continue; }
+        [ "$dry" = 1 ] && { plan+=("#$num $title -- skip: blocked (required checks/reviews)"); continue; }
         warn "skipping #$num — blocked by required checks or reviews"
         skipped+=("#$num $title -- blocked (required checks or reviews)")
         ;;
       *)
-        if [ "$yes" = 0 ]; then
+        if [ "$dry" = 1 ]; then
           plan+=("#$num $title -- attempt merge ($status)"); continue
         fi
         if err="$(gh pr merge "$num" "$merge_flag" 2>&1)"; then
@@ -306,12 +303,12 @@ if [ "$mergeall" = 1 ]; then
   done
 
   echo
-  if [ "$yes" = 0 ]; then
+  if [ "$dry" = 1 ]; then
     echo "Dry run — nothing was changed. Order (least-entangled first):"
     for p in "${plan[@]}"; do echo "  $p"; done
     [ "${#skipped[@]}" -gt 0 ] && { echo "Would skip:"; for s in "${skipped[@]}"; do echo "  $s"; done; }
     echo
-    echo "Run with --yes to actually merge."
+    echo "Run without --dry-run to actually merge."
   else
     echo "Merged (${#merged[@]}):"
     for m in "${merged[@]}"; do echo "  $m"; done

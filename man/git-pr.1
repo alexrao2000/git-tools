@@ -10,7 +10,7 @@ git-pr \- list your open pull requests, check one out, or merge them all
 .br
 .B git pr
 [\fB\-\-merge\-all\fR|\fB\-ma\fR]
-[\fB\-y\fR|\fB\-\-yes\fR]
+[\fB\-n\fR|\fB\-\-dry\-run\fR]
 [\fB\-\-method\fR \fIMETHOD\fR]
 .br
 .B git pr
@@ -67,12 +67,14 @@ PR \(em merging someone else's work isn't this command's call to make.
 Unlike the rest of
 .IR git-tools ,
 .B \-\-merge\-all
-touches shared remote state \(em it merges PRs on GitHub \(em so it is also
-.B safe by default:
-it only prints a plan and changes nothing until you also pass
-.BR \-\-yes .
-There is no force flag; anything blocked by branch protection (required
-reviews or checks) is always left alone.
+touches shared remote state \(em it merges PRs on GitHub. It acts by default;
+pass
+.B \-n
+or
+.B \-\-dry\-run
+to preview the plan first without changing anything. There is no force flag;
+anything blocked by branch protection (required reviews or checks) is always
+left alone.
 .PP
 PRs are processed in an order chosen to minimize conflicts: for each open PR it
 counts how many other open PRs touch at least one of the same changed files,
@@ -126,16 +128,11 @@ above. Cannot be combined with a
 .I NUMBER
 argument.
 .TP
-.BR \-y ", " \-\-yes
-With
-.BR \-\-merge\-all ,
-actually perform the plan. Without this, nothing is changed. Rejected without
-.BR \-\-merge\-all .
-.TP
 .BR \-n ", " \-\-dry\-run
 With
 .BR \-\-merge\-all ,
-explicit dry run (also the default).
+preview the plan without changing anything. Rejected without
+.BR \-\-merge\-all .
 .TP
 .BR \-\-method " " \fIMETHOD\fR
 With
@@ -165,11 +162,11 @@ Copy just the PR links to the clipboard.
 Check out PR #923's branch, updated to its latest.
 .TP
 .B git pr \-\-merge\-all
-Show the merge order and what would happen to each of your open PRs. Changes
-nothing.
+Merge everything mergeable of yours, rebasing and skipping as needed.
 .TP
-.B git pr \-\-merge\-all \-\-yes
-Actually merge everything mergeable of yours, rebasing and skipping as needed.
+.B git pr \-\-merge\-all \-n
+Preview the merge order and what would happen to each of your open PRs.
+Changes nothing.
 .SH SEE ALSO
 .BR git-done (1),
 .BR git-sync (1),
