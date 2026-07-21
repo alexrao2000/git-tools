@@ -1,30 +1,44 @@
-.TH GIT-PR 1 "2026-07-07" "git-tools" "Git Tools Manual"
+.TH GIT-PR 1 "2026-07-08" "git-tools" "Git Tools Manual"
 .SH NAME
-git-pr \- check out the branch for a GitHub pull request by number
+git-pr \- list your open pull requests, or check one out by number
 .SH SYNOPSIS
+.B git pr
+[\fB\-nt\fR|\fB\-\-no\-title\fR]
+.br
 .B git pr
 .I NUMBER
 .br
 .B git pr
 [\fB\-h\fR|\fB\-\-help\fR]
 .SH DESCRIPTION
-Check out the head branch of GitHub pull request #\fINUMBER\fR, always up to
-date. It runs
+With no number,
+.B git pr
+lists the open pull requests you have authored in the current repository, one
+per line as
+.IR "<url> -- <title>" .
+With
+.B \-\-no\-title
+it prints just the URLs, one per line, for easy piping. Listing uses
+.BR "gh pr list \-\-author @me" .
+.PP
+Given a
+.IR NUMBER ,
+.B git pr
+checks out that PR's branch, always up to date: it runs
 .BR "gh pr checkout" ,
 which creates the branch or fast-forwards an existing local branch to the PR's
-latest \(em so you are never left on a stale copy. For merged or closed PRs
-whose branch has been deleted from
+latest. For merged or closed PRs whose branch has been deleted from
 .IR origin ,
 it falls back to
 .IR refs/pull/<NUMBER>/head ,
-which GitHub keeps around, into a local branch of the same name.
+which GitHub keeps around.
 .PP
 Branches are stamped with their PR number
 .RB ( "branch.<name>.gtools-pr" ),
 so if the GitHub CLI cannot reach GitHub,
-.B git pr
+.B git pr <NUMBER>
 falls back to switching to the stamped local branch as-is (without updating it),
-letting it still work offline.
+letting checkout still work offline.
 .PP
 Named
 .I git pr
@@ -37,18 +51,29 @@ over a script, so a custom
 could never run.
 .SH OPTIONS
 .TP
+.BR \-nt ", " \-\-no\-title
+When listing, print bare URLs (one per line) instead of
+.IR "<url> -- <title>" .
+.TP
 .BR \-h ", " \-\-help
 Show usage and exit.
 .SH REQUIREMENTS
 Requires the GitHub CLI
 .RB ( gh ),
 authenticated for the repository
-.RB ( "gh auth login" ). Only the offline fallback (switching to an
+.RB ( "gh auth login" ). Only the offline checkout fallback (switching to an
 already-stamped branch) works without it.
 .SH EXAMPLES
 .TP
+.B git pr
+List your open PRs as
+.IR "<url> -- <title>" .
+.TP
+.B git pr \-nt | pbcopy
+Copy just the PR links to the clipboard.
+.TP
 .B git pr 923
-Check out the head branch of PR #923.
+Check out PR #923's branch, updated to its latest.
 .SH SEE ALSO
 .BR git-done (1),
 .BR git-sync (1),
