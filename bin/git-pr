@@ -194,17 +194,34 @@ if [ "$mergeall" = 1 ]; then
   # Order candidates by conflict-adjacency: for each PR, count how many other
   # candidates share at least one changed file; sort ascending (least-entangled
   # first), tie-break by PR number.
+  #
+  # Built as an inverted index (file -> the PRs that touch it) rather than a
+  # pairwise scan over every PR pair: cost scales with the total number of
+  # changed files, not the square of the PR count, so it stays fast even with
+  # a large open-PR count (most files belong to exactly one PR and cost
+  # nothing here; only files shared by multiple PRs do any work).
+  cand_list="$tmp/cand_list"; printf '%s\n' "${cand[@]}" > "$cand_list"
+  pairs="$tmp/pairs"; : > "$pairs"
   for num in "${cand[@]}"; do
-    ov=0
-    for other in "${cand[@]}"; do
-      [ "$other" = "$num" ] && continue
-      if [ -s "$files_dir/$num" ] && [ -s "$files_dir/$other" ] \
-        && comm -12 "$files_dir/$num" "$files_dir/$other" | grep -q .; then
-        ov=$((ov + 1))
-      fi
-    done
-    printf '%d\t%d\n' "$ov" "$num" >> "$overlap_input"
+    [ -s "$files_dir/$num" ] || continue
+    sed "s/\$/\t$num/" "$files_dir/$num" >> "$pairs"
   done
+  awk -F'\t' '
+    FNR == NR { allnums[$1] = 1; next }
+    { byfile[$1] = byfile[$1] " " $2 }
+    END {
+      for (f in byfile) {
+        n = split(byfile[f], nums, " ")
+        for (i = 1; i <= n; i++)
+          for (j = 1; j <= n; j++) {
+            if (i == j) continue
+            key = nums[i] SUBSEP nums[j]
+            if (!(key in seen)) { seen[key] = 1; ov[nums[i]]++ }
+          }
+      }
+      for (p in allnums) printf "%d\t%s\n", (p in ov ? ov[p] : 0), p
+    }
+  ' "$cand_list" "$pairs" > "$overlap_input"
   order=()
   while IFS=$'\t' read -r _ovnum num; do order+=("$num"); done < <(sort -n -k1,1 -k2,2 "$overlap_input")
 
