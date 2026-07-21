@@ -9,7 +9,7 @@ git-pr \- list your open pull requests, check one out, or merge them all
 .I NUMBER
 .br
 .B git pr
-.B \-\-merge
+[\fB\-\-merge\-all\fR|\fB\-ma\fR]
 [\fB\-y\fR|\fB\-\-yes\fR]
 [\fB\-\-mine\fR]
 [\fB\-\-method\fR \fIMETHOD\fR]
@@ -55,9 +55,9 @@ git always prefers its built-in
 over a script, so a custom
 .I git-switch
 could never run.
-.SS "\-\-merge: merge every mergeable open PR"
+.SS "\-\-merge\-all: merge every mergeable open PR"
 With
-.BR \-\-merge ,
+.BR \-\-merge\-all " (" \-ma "),"
 .B git pr
 merges every mergeable open pull request in the current repository, rebasing
 branches that need it, skipping anything that needs a human, and listing the
@@ -65,7 +65,7 @@ skips.
 .PP
 Unlike the rest of
 .IR git-tools ,
-.B \-\-merge
+.B \-\-merge\-all
 touches shared remote state \(em it merges PRs on GitHub \(em so it is
 .B safe by default:
 it only prints a plan and changes nothing until you also pass
@@ -118,37 +118,37 @@ afterward for that.
 When listing, print bare URLs (one per line) instead of
 .IR "<url> -- <title>" .
 .TP
-.B \-\-merge
+.BR \-\-merge\-all ", " \-ma
 Merge every mergeable open PR instead of listing or checking one out. See
-.B \-\-merge
+.B \-\-merge\-all
 above. Cannot be combined with a
 .I NUMBER
 argument.
 .TP
 .BR \-y ", " \-\-yes
 With
-.BR \-\-merge ,
+.BR \-\-merge\-all ,
 actually perform the plan. Without this, nothing is changed. Rejected without
-.BR \-\-merge .
+.BR \-\-merge\-all .
 .TP
 .BR \-n ", " \-\-dry\-run
 With
-.BR \-\-merge ,
+.BR \-\-merge\-all ,
 explicit dry run (also the default).
 .TP
 .B \-\-mine
 With
-.BR \-\-merge ,
+.BR \-\-merge\-all ,
 only consider PRs authored by you, instead of every open PR in the repo.
 Rejected without
-.BR \-\-merge .
+.BR \-\-merge\-all .
 .TP
 .BR \-\-method " " \fIMETHOD\fR
 With
-.BR \-\-merge ,
+.BR \-\-merge\-all ,
 .IR merge ", " squash ", or " rebase ,
 overriding the repository's default merge method. Rejected without
-.BR \-\-merge .
+.BR \-\-merge\-all .
 .TP
 .BR \-h ", " \-\-help
 Show usage and exit.
@@ -170,13 +170,13 @@ Copy just the PR links to the clipboard.
 .B git pr 923
 Check out PR #923's branch, updated to its latest.
 .TP
-.B git pr \-\-merge
+.B git pr \-\-merge\-all
 Show the merge order and what would happen to each open PR. Changes nothing.
 .TP
-.B git pr \-\-merge \-\-yes
+.B git pr \-\-merge\-all \-\-yes
 Actually merge everything mergeable, rebasing and skipping as needed.
 .TP
-.B git pr \-\-merge \-\-mine \-\-yes
+.B git pr \-\-merge\-all \-\-mine \-\-yes
 Only merge your own open PRs.
 .SH SEE ALSO
 .BR git-done (1),
