@@ -20,6 +20,8 @@
 # state (it merges PRs on GitHub), so it is SAFE BY DEFAULT — it only prints a
 # plan and does nothing until you pass --yes. There is no --force; anything
 # blocked by branch protection (required reviews/checks) is always left alone.
+# It only ever considers PRs YOU authored — merging someone else's PR isn't
+# this command's call to make.
 #
 # --merge-all order: it computes which open PRs touch overlapping files and
 # processes the least-entangled ones first (fewest other PRs sharing a changed
@@ -51,9 +53,8 @@
 #   git pr                     list open PRs you authored ("<url> -- <title>")
 #   git pr -nt                 list them as bare URLs (--no-title)
 #   git pr <n|branch>          check out a PR by number, branch name, or URL
-#   git pr --merge-all         dry run: show the merge order and what would happen (-ma)
+#   git pr --merge-all         dry run: your open PRs, merge order + what would happen (-ma)
 #   git pr --merge-all --yes   actually merge (-y)
-#   git pr --merge-all --mine  only consider PRs you authored
 #   git pr --merge-all --method squash|merge|rebase   override the merge method
 #   git pr -h                  show this help
 #
@@ -77,24 +78,23 @@ git pr — list your open PRs, check one out, or merge them all.
   git pr -nt                 list them as bare URLs (--no-title)
   git pr <n|branch>          check out that PR (by number, branch name, or URL),
                              updated to the PR's latest
-  git pr --merge-all         merge every mergeable open PR, rebasing what needs
-                             it, skipping what needs a human — dry run by
-                             default (-ma)
+  git pr --merge-all         merge every mergeable PR YOU authored, rebasing
+                             what needs it, skipping what needs a human —
+                             dry run by default (-ma)
   git pr --merge-all --yes   actually merge (-y)
   git pr -h                  show this help
 
 Uses the GitHub CLI (gh). Checkout falls back to refs/pull/<n>/head for deleted
 branches, or (offline) to the local branch.
 
---merge-all (-ma) is safe by default: it prints a plan and touches nothing
-until --yes. Branch protection (required reviews/checks) is never bypassed.
-PRs are merged in an order chosen to minimize conflicts — the least-entangled
-PRs (fewest other open PRs touching the same files) go first. A PR needing a
-rebase gets one, in a scratch worktree that never touches your current
-branch; if the rebase itself conflicts, that PR is skipped for you to resolve
-by hand.
+--merge-all (-ma) only ever considers PRs you authored, and is safe by
+default: it prints a plan and touches nothing until --yes. Branch protection
+(required reviews/checks) is never bypassed. PRs are merged in an order chosen
+to minimize conflicts — the least-entangled PRs (fewest other open PRs
+touching the same files) go first. A PR needing a rebase gets one, in a
+scratch worktree that never touches your current branch; if the rebase itself
+conflicts, that PR is skipped for you to resolve by hand.
 
-  git pr --merge-all --mine     only consider PRs you authored
   git pr --merge-all --method squash|merge|rebase   override the merge method
                                 (default: the repo's own default merge method)
 EOF
@@ -104,7 +104,6 @@ id=""
 notitle=0
 mergeall=0
 yes=0
-mine=0
 method=""
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -113,7 +112,6 @@ while [ $# -gt 0 ]; do
     --merge-all|-ma) mergeall=1 ;;
     -y|--yes) yes=1 ;;
     -n|--dry-run) yes=0 ;;
-    --mine) mine=1 ;;
     --method) shift; method="${1:-}" ;;
     -*) echo "git pr: unknown option '$1' (try -h)" >&2; exit 2 ;;
     *) id="$1" ;;   # PR number, branch name, or URL
@@ -121,8 +119,8 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-if [ "$mergeall" = 0 ] && { [ "$yes" = 1 ] || [ "$mine" = 1 ] || [ -n "$method" ]; }; then
-  echo "git pr: --yes/--mine/--method only apply with --merge-all" >&2; exit 2
+if [ "$mergeall" = 0 ] && { [ "$yes" = 1 ] || [ -n "$method" ]; }; then
+  echo "git pr: --yes/--method only apply with --merge-all" >&2; exit 2
 fi
 if [ "$mergeall" = 1 ] && [ -n "$id" ]; then
   echo "git pr: --merge-all doesn't take a PR number or branch" >&2; exit 2
@@ -157,12 +155,13 @@ if [ "$mergeall" = 1 ]; then
   fi
   merge_flag="--$method"
 
-  # Gather open PRs (candidates), skipping drafts up front.
-  author_args=(); [ "$mine" = 1 ] && author_args=(--author "@me")
-  nums="$(gh pr list --state open "${author_args[@]}" --limit 200 --json number --jq '.[].number' 2>/dev/null || true)"
+  # Gather your own open PRs (candidates), skipping drafts up front. Merging
+  # someone else's PR is a call for them or a maintainer to make, not this
+  # command — always scoped to PRs you authored.
+  nums="$(gh pr list --state open --author "@me" --limit 200 --json number --jq '.[].number' 2>/dev/null || true)"
 
   if [ -z "$nums" ]; then
-    echo "git pr: no open PRs$([ "$mine" = 1 ] && echo " authored by you") in this repo."
+    echo "git pr: no open PRs authored by you in this repo."
     exit 0
   fi
 

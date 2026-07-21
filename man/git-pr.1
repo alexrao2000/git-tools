@@ -11,7 +11,6 @@ git-pr \- list your open pull requests, check one out, or merge them all
 .B git pr
 [\fB\-\-merge\-all\fR|\fB\-ma\fR]
 [\fB\-y\fR|\fB\-\-yes\fR]
-[\fB\-\-mine\fR]
 [\fB\-\-method\fR \fIMETHOD\fR]
 .br
 .B git pr
@@ -55,18 +54,20 @@ git always prefers its built-in
 over a script, so a custom
 .I git-switch
 could never run.
-.SS "\-\-merge\-all: merge every mergeable open PR"
+.SS "\-\-merge\-all: merge every mergeable open PR you authored"
 With
 .BR \-\-merge\-all " (" \-ma "),"
 .B git pr
-merges every mergeable open pull request in the current repository, rebasing
-branches that need it, skipping anything that needs a human, and listing the
-skips.
+merges every mergeable pull request
+.B you authored
+in the current repository, rebasing branches that need it, skipping anything
+that needs a human, and listing the skips. It never considers anyone else's
+PR \(em merging someone else's work isn't this command's call to make.
 .PP
 Unlike the rest of
 .IR git-tools ,
 .B \-\-merge\-all
-touches shared remote state \(em it merges PRs on GitHub \(em so it is
+touches shared remote state \(em it merges PRs on GitHub \(em so it is also
 .B safe by default:
 it only prints a plan and changes nothing until you also pass
 .BR \-\-yes .
@@ -136,13 +137,6 @@ With
 .BR \-\-merge\-all ,
 explicit dry run (also the default).
 .TP
-.B \-\-mine
-With
-.BR \-\-merge\-all ,
-only consider PRs authored by you, instead of every open PR in the repo.
-Rejected without
-.BR \-\-merge\-all .
-.TP
 .BR \-\-method " " \fIMETHOD\fR
 With
 .BR \-\-merge\-all ,
@@ -171,13 +165,11 @@ Copy just the PR links to the clipboard.
 Check out PR #923's branch, updated to its latest.
 .TP
 .B git pr \-\-merge\-all
-Show the merge order and what would happen to each open PR. Changes nothing.
+Show the merge order and what would happen to each of your open PRs. Changes
+nothing.
 .TP
 .B git pr \-\-merge\-all \-\-yes
-Actually merge everything mergeable, rebasing and skipping as needed.
-.TP
-.B git pr \-\-merge\-all \-\-mine \-\-yes
-Only merge your own open PRs.
+Actually merge everything mergeable of yours, rebasing and skipping as needed.
 .SH SEE ALSO
 .BR git-done (1),
 .BR git-sync (1),
