@@ -1,6 +1,6 @@
-.TH GIT-PR 1 "2026-07-21" "git-tools" "Git Tools Manual"
+.TH GIT-PR 1 "2026-07-22" "git-tools" "Git Tools Manual"
 .SH NAME
-git-pr \- list your open pull requests, check one out, or merge them all
+git-pr \- list your open pull requests, check one out, or merge one or more
 .SH SYNOPSIS
 .B git pr
 [\fB\-nt\fR|\fB\-\-no\-title\fR]
@@ -9,7 +9,9 @@ git-pr \- list your open pull requests, check one out, or merge them all
 .I NUMBER
 .br
 .B git pr
-[\fB\-\-merge\-all\fR|\fB\-ma\fR]
+.B merge
+.RI [ ID " ...]"
+[\fB\-a\fR|\fB\-\-all\fR]
 [\fB\-n\fR|\fB\-\-dry\-run\fR]
 [\fB\-\-method\fR \fIMETHOD\fR]
 .br
@@ -53,21 +55,37 @@ git always prefers its built-in
 .B switch
 over a script, so a custom
 .I git-switch
-could never run.
-.SS "\-\-merge\-all: merge every mergeable open PR you authored"
-With
-.BR \-\-merge\-all " (" \-ma "),"
-.B git pr
-merges every mergeable pull request
-.B you authored
-in the current repository, rebasing branches that need it, skipping anything
-that needs a human, and listing the skips. It never considers anyone else's
-PR \(em merging someone else's work isn't this command's call to make.
+could never run. This is also why merging is the subcommand
+.BR "git pr merge" ,
+rather than a flag \(em a subcommand needed a name, and a plain
+.I MERGE
+would collide with the checkout form for anyone with a branch literally named
+.IR merge .
+.SS "git pr merge: merge one or more pull requests"
+.B git pr merge
+.I ID
+.RI [ ID " ...]"
+merges exactly the PR(s) you name \(em each
+.I ID
+can be a PR number, head branch name, or PR URL, and they can be mixed.
+Because you are naming them explicitly, this considers PRs from any author,
+the same as naming a PR to
+.BR "gh pr merge" .
+Duplicate IDs that resolve to the same PR (e.g. its number and its branch name,
+given together) are merged once.
 .PP
-Unlike the rest of
-.IR git-tools ,
-.B \-\-merge\-all
-touches shared remote state \(em it merges PRs on GitHub. It acts by default;
+.B git pr merge \-\-all
+(or
+.BR \-a ,
+with no IDs) is the broad-sweep form: it merges every mergeable PR
+.B you authored
+in the repository. Because this form has no explicit target, it is scoped to
+your own PRs only \(em merging someone else's work is not a sweep's call to
+make.
+.PP
+Either way,
+.B git pr merge
+touches shared remote state (it merges PRs on GitHub), and it acts by default;
 pass
 .B \-n
 or
@@ -76,10 +94,11 @@ to preview the plan first without changing anything. There is no force flag;
 anything blocked by branch protection (required reviews or checks) is always
 left alone.
 .PP
-PRs are processed in an order chosen to minimize conflicts: for each open PR it
-counts how many other open PRs touch at least one of the same changed files,
-and processes the least-entangled ones first. This is computed once, up front,
-from each PR's changed-file list \(em a plain adjacency count, no LLM involved.
+The targeted PRs are processed in an order chosen to minimize conflicts: for
+each one it counts how many of the other targeted PRs touch at least one of
+the same changed files, and processes the least-entangled ones first. This is
+computed once, up front, from each PR's changed-file list \(em a plain
+adjacency count, no LLM involved.
 .PP
 For each PR, in that order:
 .IP \(bu 2
@@ -101,7 +120,7 @@ skipped \(em that needs a human.
 .BR BLOCKED :
 skipped. Required checks or reviews are never bypassed.
 .IP \(bu 2
-Draft PRs: skipped.
+Draft PRs, or an ID that cannot be resolved to an open PR: skipped.
 .PP
 Merging one PR can change the status of the ones after it (e.g. a PR that was
 clean can become behind). Each PR's status is re-checked right before it is
@@ -121,25 +140,22 @@ afterward for that.
 When listing, print bare URLs (one per line) instead of
 .IR "<url> -- <title>" .
 .TP
-.BR \-\-merge\-all ", " \-ma
-Merge every mergeable open PR instead of listing or checking one out. See
-.B \-\-merge\-all
-above. Cannot be combined with a
-.I NUMBER
-argument.
+.BR \-a ", " \-\-all
+With
+.BR "git pr merge" ,
+merge every mergeable PR you authored instead of specific ones. Cannot be
+combined with explicit IDs.
 .TP
 .BR \-n ", " \-\-dry\-run
 With
-.BR \-\-merge\-all ,
-preview the plan without changing anything. Rejected without
-.BR \-\-merge\-all .
+.BR "git pr merge" ,
+preview the plan without changing anything.
 .TP
 .BR \-\-method " " \fIMETHOD\fR
 With
-.BR \-\-merge\-all ,
+.BR "git pr merge" ,
 .IR merge ", " squash ", or " rebase ,
-overriding the repository's default merge method. Rejected without
-.BR \-\-merge\-all .
+overriding the repository's default merge method.
 .TP
 .BR \-h ", " \-\-help
 Show usage and exit.
@@ -161,10 +177,15 @@ Copy just the PR links to the clipboard.
 .B git pr 923
 Check out PR #923's branch, updated to its latest.
 .TP
-.B git pr \-\-merge\-all
+.B git pr merge 923 task/other-thing
+Merge PR #923 and the PR whose head branch is
+.IR task/other-thing ,
+in whichever order has fewer conflicts.
+.TP
+.B git pr merge \-\-all
 Merge everything mergeable of yours, rebasing and skipping as needed.
 .TP
-.B git pr \-\-merge\-all \-n
+.B git pr merge \-\-all \-n
 Preview the merge order and what would happen to each of your open PRs.
 Changes nothing.
 .SH SEE ALSO
