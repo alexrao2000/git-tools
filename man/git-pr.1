@@ -12,6 +12,7 @@ git-pr \- list your open pull requests, check one out, or merge one or more
 .B merge
 .RI [ ID " ...]"
 [\fB\-a\fR|\fB\-\-all\fR]
+[\fB\-x\fR|\fB\-\-exclude\fR \fIID\fR ...]
 [\fB\-n\fR|\fB\-\-dry\-run\fR]
 [\fB\-\-method\fR \fIMETHOD\fR]
 .br
@@ -67,12 +68,29 @@ would collide with the checkout form for anyone with a branch literally named
 .RI [ ID " ...]"
 merges exactly the PR(s) you name \(em each
 .I ID
-can be a PR number, head branch name, or PR URL, and they can be mixed.
-Because you are naming them explicitly, this considers PRs from any author,
-the same as naming a PR to
+can be a PR number, head branch name, PR URL, or an inclusive
+.I NNN-MMM
+range of PR numbers (either order), and they can all be mixed. A token only
+counts as a range if it is entirely digits and a hyphen, so a branch named
+e.g.
+.I task-42
+is unaffected. Because you are naming PRs explicitly, this considers PRs from
+any author, the same as naming a PR to
 .BR "gh pr merge" .
 Duplicate IDs that resolve to the same PR (e.g. its number and its branch name,
 given together) are merged once.
+.PP
+.BR \-x " (" \-\-exclude )
+takes one or more IDs (the same forms, including ranges) to drop from the
+targeted set, whether that set came from explicit IDs or from
+.BR \-\-all .
+Everything after
+.B \-x
+is treated as an exclusion until the next recognized flag, so it must come
+after the IDs (or after
+.BR \-\-all )
+it applies to. An exclude that does not resolve to an open PR is simply a
+no-op, not an error.
 .PP
 .B git pr merge \-\-all
 (or
@@ -146,6 +164,12 @@ With
 merge every mergeable PR you authored instead of specific ones. Cannot be
 combined with explicit IDs.
 .TP
+.BR \-x ", " \-\-exclude " " \fIID\fR " ..."
+With
+.BR "git pr merge" ,
+drop the given ID(s) \(em number, branch, URL, or range \(em from the targeted
+set. Consumes all following bare arguments until the next flag.
+.TP
 .BR \-n ", " \-\-dry\-run
 With
 .BR "git pr merge" ,
@@ -182,8 +206,14 @@ Merge PR #923 and the PR whose head branch is
 .IR task/other-thing ,
 in whichever order has fewer conflicts.
 .TP
+.B git pr merge 824\-830 \-x 825 827
+Merge PRs #824 through #830, except #825 and #827.
+.TP
 .B git pr merge \-\-all
 Merge everything mergeable of yours, rebasing and skipping as needed.
+.TP
+.B git pr merge \-\-all \-x 825 827
+Same, but skip #825 and #827 even if they are yours and otherwise mergeable.
 .TP
 .B git pr merge \-\-all \-n
 Preview the merge order and what would happen to each of your open PRs.

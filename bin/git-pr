@@ -5,8 +5,10 @@
 #   git pr                list your open PRs in this repo, as "<url> -- <title>"
 #   git pr --no-title     just the URLs, one per line (easy to pipe)   [-nt]
 #   git pr <n|branch>     check out that PR's branch, updated to the PR's latest
-#   git pr merge <ids...> merge specific PR(s) (number, branch, or URL — mixable)
+#   git pr merge <ids...> merge specific PR(s) (number, branch, URL, or a
+#                         "NNN-MMM" range — all mixable)
 #   git pr merge --all    merge every mergeable PR you authored   [-a]
+#   git pr merge ... -x <ids...>   exclude PR(s) from either form   [--exclude]
 #
 # The checkout argument (and each merge argument) can be a PR number, a head
 # branch name, or a PR URL — whatever `gh` can resolve to a pull request.
@@ -27,6 +29,13 @@
 # not scoped to your own). `git pr merge --all` has no ids and is a broad
 # sweep, so THAT form only ever considers PRs YOU authored — merging someone
 # else's PR isn't a sweep's call to make.
+#
+# An id may be a "NNN-MMM" range of PR numbers (either order), expanded into
+# individual ids — a token only counts as a range if it's ENTIRELY digits, so
+# a branch name like "task-42" passes through untouched. -x/--exclude takes
+# one or more ids (same forms, plus ranges) to drop from either --all or an
+# explicit id list — everything after -x is an exclude until the next flag.
+# Duplicate/excluded ids that resolve to the same PR are each counted once.
 #
 # Merge order: it computes which of the targeted PRs touch overlapping files
 # and processes the least-entangled ones first (fewest others sharing a
@@ -57,14 +66,15 @@
 # `merge` is claimed as a subcommand — use `git pr merge merge` if you must.)
 #
 # Usage:
-#   git pr                        list open PRs you authored ("<url> -- <title>")
-#   git pr -nt                    list them as bare URLs (--no-title)
-#   git pr <n|branch>              check out a PR by number, branch name, or URL
-#   git pr merge <n|branch>...    merge the given PR(s)
-#   git pr merge --all            merge every mergeable PR you authored (-a)
-#   git pr merge ... -n           preview instead (--dry-run)
+#   git pr                          list open PRs you authored ("<url> -- <title>")
+#   git pr -nt                      list them as bare URLs (--no-title)
+#   git pr <n|branch>                check out a PR by number, branch name, or URL
+#   git pr merge <n|branch|range>... merge the given PR(s); "824-830" is a range
+#   git pr merge --all              merge every mergeable PR you authored (-a)
+#   git pr merge ... -x <ids...>    exclude PR(s) (--exclude; also takes ranges)
+#   git pr merge ... -n             preview instead (--dry-run)
 #   git pr merge ... --method squash|merge|rebase   override the merge method
-#   git pr -h                     show this help
+#   git pr -h                       show this help
 #
 set -euo pipefail
 
@@ -86,10 +96,13 @@ git pr — list your open PRs, check one out, or merge one or more.
   git pr -nt                  list them as bare URLs (--no-title)
   git pr <n|branch>           check out that PR (by number, branch name, or
                               URL), updated to the PR's latest
-  git pr merge <n|branch>...  merge the given PR(s) (number, branch, or URL —
-                              mixable), rebasing what needs it, skipping what
-                              needs a human
+  git pr merge <ids...>       merge the given PR(s) (number, branch, URL, or a
+                              "824-830" range — all mixable), rebasing what
+                              needs it, skipping what needs a human
   git pr merge --all          merge every mergeable PR YOU authored (-a)
+  git pr merge ... -x <ids>   exclude PR(s) from either form (--exclude; also
+                              takes ranges — everything after -x is excluded
+                              until the next flag)
   git pr merge ... -n         preview instead: show the plan, change nothing
   git pr -h                   show this help
 
@@ -105,6 +118,8 @@ merged in an order chosen to minimize conflicts — the least-entangled ones
 one, in a scratch worktree that never touches your current branch; if the
 rebase itself conflicts, that PR is skipped for you to resolve by hand.
 
+  git pr merge 824-830 -x 825 827   merge #824-830 except #825 and #827
+
   git pr merge ... --method squash|merge|rebase   override the merge method
                                 (default: the repo's own default merge method)
 EOF
@@ -116,7 +131,9 @@ subcmd=""
 all=0
 dry=0
 method=""
-merge_ids=()
+raw_targets=()   # positional args before -x: ids and/or "NNN-MMM" ranges
+raw_excludes=()  # positional args after -x/--exclude
+in_exclude=0     # once -x is seen, bare tokens go to raw_excludes until another flag
 
 # `merge` is a subcommand, not a flag: `git pr merge <ids...>` / `--all`.
 if [ "${1:-}" = "merge" ]; then subcmd="merge"; shift; fi
@@ -124,28 +141,63 @@ if [ "${1:-}" = "merge" ]; then subcmd="merge"; shift; fi
 while [ $# -gt 0 ]; do
   case "$1" in
     -h|--help) usage; exit 0 ;;
-    -nt|--no-title) notitle=1 ;;
-    -a|--all) all=1 ;;
-    -n|--dry-run) dry=1 ;;
-    --method) shift; method="${1:-}" ;;
+    -nt|--no-title) notitle=1; in_exclude=0 ;;
+    -a|--all) all=1; in_exclude=0 ;;
+    -n|--dry-run) dry=1; in_exclude=0 ;;
+    -x|--exclude)
+      [ "$subcmd" = "merge" ] || {
+        echo "git pr: --exclude only applies to 'git pr merge'" >&2; exit 2; }
+      in_exclude=1 ;;
+    --method) shift; method="${1:-}"; in_exclude=0 ;;
     -*) echo "git pr: unknown option '$1' (try -h)" >&2; exit 2 ;;
-    *) if [ "$subcmd" = "merge" ]; then merge_ids+=("$1"); else id="$1"; fi ;;
+    *)
+      if [ "$subcmd" != "merge" ]; then
+        id="$1"
+      elif [ "$in_exclude" = 1 ]; then
+        raw_excludes+=("$1")
+      else
+        raw_targets+=("$1")
+      fi
+      ;;
   esac
   shift
 done
 
 if [ "$subcmd" != "merge" ]; then
-  if [ "$all" = 1 ] || [ "$dry" = 1 ] || [ -n "$method" ]; then
-    echo "git pr: --all/--dry-run/--method only apply to 'git pr merge'" >&2; exit 2
+  if [ "$all" = 1 ] || [ "$dry" = 1 ] || [ -n "$method" ] || [ "${#raw_excludes[@]}" -gt 0 ]; then
+    echo "git pr: --all/--exclude/--dry-run/--method only apply to 'git pr merge'" >&2; exit 2
   fi
 else
-  if [ "$all" = 1 ] && [ "${#merge_ids[@]}" -gt 0 ]; then
+  if [ "$all" = 1 ] && [ "${#raw_targets[@]}" -gt 0 ]; then
     echo "git pr merge: can't combine --all with specific PRs" >&2; exit 2
   fi
-  if [ "$all" = 0 ] && [ "${#merge_ids[@]}" -eq 0 ]; then
-    echo "git pr merge: specify PR(s) to merge (number, branch, or URL), or --all for every one of your open PRs" >&2; exit 2
+  if [ "$all" = 0 ] && [ "${#raw_targets[@]}" -eq 0 ]; then
+    echo "git pr merge: specify PR(s) to merge (number, branch, or URL — 'NNN-MMM' for a range), or --all for every one of your open PRs" >&2; exit 2
   fi
 fi
+
+# Expand "NNN-MMM" range tokens (PR numbers only) into individual ids. A token
+# only counts as a range if it's ENTIRELY digits-hyphen-digits — a branch name
+# like "task-42" has letters in it and passes through untouched. Applied to
+# both the target list and the exclude list, so -x accepts ranges too.
+expand_ranges() {  # expand_ranges <out-array-name> <in-token...>
+  local out="$1"; shift
+  local t lo hi tmp2
+  for t in "$@"; do
+    if printf '%s' "$t" | grep -qE '^[0-9]+-[0-9]+$'; then
+      lo="${t%-*}"; hi="${t#*-}"
+      [ "$lo" -gt "$hi" ] && { tmp2=$lo; lo=$hi; hi=$tmp2; }
+      if [ $((hi - lo)) -gt 500 ]; then
+        echo "git pr merge: range '$t' spans more than 500 PRs — that's probably a typo" >&2; exit 2
+      fi
+      while [ "$lo" -le "$hi" ]; do eval "$out+=(\"$lo\")"; lo=$((lo + 1)); done
+    else
+      eval "$out+=(\"\$t\")"
+    fi
+  done
+}
+merge_ids=(); expand_ranges merge_ids "${raw_targets[@]:-}"
+exclude_ids=(); expand_ranges exclude_ids "${raw_excludes[@]:-}"
 
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
   echo "git pr: not inside a git repository" >&2; exit 1; }
@@ -177,15 +229,28 @@ if [ "$subcmd" = "merge" ]; then
   merge_flag="--$method"
   skipped=()
 
+  # Resolve -x/--exclude ids to PR numbers up front (an exclude that doesn't
+  # resolve to anything is just a no-op, not an error — it may already be
+  # closed, which is what you wanted anyway).
+  exclude_nums=""
+  for xid in "${exclude_ids[@]}"; do
+    xn="$(gh pr view "$xid" --json number --jq '.number' 2>/dev/null || true)"
+    [ -n "$xn" ] && exclude_nums="$exclude_nums $xn"
+  done
+
   # Gather the PR numbers to work on. --all is a broad sweep, so it's scoped
   # to PRs YOU authored — merging someone else's PR isn't a sweep's call to
   # make. Explicit ids are resolved (number/branch/URL, whoever authored them)
   # and deduped, since the same PR could be named twice (e.g. by number and by
-  # branch).
+  # branch). -x/--exclude removes matching PRs from either set.
   if [ "$all" = 1 ]; then
-    nums="$(gh pr list --state open --author "@me" --limit 200 --json number --jq '.[].number' 2>/dev/null || true)"
+    nums=""
+    for n in $(gh pr list --state open --author "@me" --limit 200 --json number --jq '.[].number' 2>/dev/null || true); do
+      case " $exclude_nums " in *" $n "*) continue ;; esac
+      nums="$nums $n"
+    done
     if [ -z "$nums" ]; then
-      echo "git pr merge: no open PRs authored by you in this repo."
+      echo "git pr merge: no open PRs authored by you in this repo (after --exclude)."
       exit 0
     fi
   else
@@ -197,10 +262,12 @@ if [ "$subcmd" = "merge" ]; then
         continue
       fi
       case " $seen_nums " in *" $n "*) continue ;; esac
-      seen_nums="$seen_nums $n"; nums="$nums $n"
+      seen_nums="$seen_nums $n"
+      case " $exclude_nums " in *" $n "*) skipped+=("#$n -- excluded"); continue ;; esac
+      nums="$nums $n"
     done
     if [ -z "$nums" ]; then
-      echo "git pr merge: none of the given PR(s) could be resolved."
+      echo "git pr merge: none of the given PR(s) could be resolved (or all were excluded)."
       if [ "${#skipped[@]}" -gt 0 ]; then
         echo "Skipped:"; for s in "${skipped[@]}"; do echo "  $s"; done
       fi
