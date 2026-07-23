@@ -1,13 +1,13 @@
 #autoload
 #
 # Open PRs for this repo, tab-separated "NUMBER<TAB>head-branch<TAB>title" —
-# best effort, silent if gh/network is unavailable (never blocks completion
-# on an error). Tab-separated (not ':') because PR titles routinely contain
-# colons.
+# best effort, silent if gh/network is unavailable.
 #
-# Result is cached per-repo for a short TTL so repeated <TAB>s don't each pay
-# for a `gh pr list` round-trip (~0.5s). The cache is only refreshed once the
-# TTL lapses; delete the cache file (or wait it out) to force a refresh.
+# Cached per-repo for a short TTL. A fresh cache is served instantly (just a
+# file read); only a stale/missing cache pays for `gh pr list` (~0.5s). To make
+# even the first Tab instant, call this function in the BACKGROUND from a chpwd
+# hook (`_gtools_open_prs &>/dev/null &`) so the cache is pre-warmed on entering
+# a repo — then the completion just reads it and never waits on the network.
 local ttl=30
 local top; top="$(git rev-parse --show-toplevel 2>/dev/null)" || return
 local dir="${TMPDIR:-/tmp}/gtools-comp"
