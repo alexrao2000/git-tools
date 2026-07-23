@@ -15,4 +15,9 @@ if [[ ${words[CURRENT]} == -* ]]; then
 fi
 local -a tokens
 tokens=(${(f)"$(_gtools_branch_tokens)"})
-_multi_parts - tokens
+# The first lone `-` is an end-of-options terminator (zparseopts consumes
+# it); the second is the actual separator. Without the terminator, the
+# separator itself gets swallowed as an option, the array name is taken as
+# the separator, and the function silently completes nothing — zsh then
+# falls through to plain file completion.
+_multi_parts - - tokens
