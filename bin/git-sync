@@ -161,7 +161,7 @@ exclude_ids=(); [ "${#raw_excludes[@]}" -gt 0 ] && expand_ranges exclude_ids "${
 # A numeric/URL token needs `gh` to become a branch; a plain name doesn't.
 needs_gh() { printf '%s' "$1" | grep -qE '^[0-9]+$|://'; }
 gh_required=0
-for t in "${target_ids[@]:-}" "${exclude_ids[@]:-}"; do
+for t in "${target_ids[@]}" "${exclude_ids[@]}"; do
   [ -n "$t" ] && needs_gh "$t" && { gh_required=1; break; }
 done
 if [ "$gh_required" = 1 ] && ! command -v gh >/dev/null 2>&1; then
@@ -285,7 +285,7 @@ if [ "$dry" = 1 ]; then
   git fetch origin --prune
   echo
   excl=" "
-  for x in "${exclude_ids[@]:-}"; do [ -n "$x" ] && { xb="$(resolve_target "$x")"; [ -n "$xb" ] && excl="$excl$xb "; }; done
+  for x in "${exclude_ids[@]}"; do [ -n "$x" ] && { xb="$(resolve_target "$x")"; [ -n "$xb" ] && excl="$excl$xb "; }; done
   echo "Against 'origin/$base', would:"
   if [ "$all" = 1 ]; then
     while IFS= read -r b; do
@@ -322,7 +322,7 @@ git fetch --quiet origin --prune
 
 # Resolve the excludes to a space-padded set of branch names for membership tests.
 exclude_set=" "
-for x in "${exclude_ids[@]:-}"; do
+for x in "${exclude_ids[@]}"; do
   [ -z "$x" ] && continue
   xb="$(resolve_target "$x")"; [ -n "$xb" ] && exclude_set="$exclude_set$xb "
 done

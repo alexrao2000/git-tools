@@ -5,19 +5,28 @@
 #   git pr                list your open PRs in this repo, as "<url> -- <title>"
 #   git pr --no-title     just the URLs, one per line (easy to pipe)   [-nt]
 #   git pr <n|branch>     check out that PR's branch, updated to the PR's latest
+#   git pr <ids...>       (2+ ids, or -x, or a range) list exactly those PRs
+#                         instead — any author, any state
 #   git pr merge <ids...> merge specific PR(s) (number, branch, URL, or a
 #                         "NNN-MMM" range — all mixable)
 #   git pr merge --all    merge every mergeable PR you authored   [-a]
-#   git pr merge ... -x <ids...>   exclude PR(s) from either form   [--exclude]
+#   git pr ... -x <ids...>   exclude PR(s) from any of the above   [--exclude]
 #
-# The checkout argument (and each merge argument) can be a PR number, a head
-# branch name, or a PR URL — whatever `gh` can resolve to a pull request.
-# Listing uses `gh pr list --author @me`. Checkout uses `gh pr checkout`, which
-# creates the branch or fast-forwards an existing one to the PR's latest — so
-# you're never on a stale copy. For a merged/closed PR whose head branch was
-# deleted from origin, it falls back to `refs/pull/<n>/head`; if GitHub is
-# unreachable, it falls back to a local branch (the stamped one for a number,
-# or the named branch itself), switched to as-is (not updated).
+# The checkout/list argument (and each merge argument) can be a PR number, a
+# head branch name, or a PR URL — whatever `gh` can resolve to a pull request.
+# Checkout uses `gh pr checkout`, which creates the branch or fast-forwards an
+# existing one to the PR's latest — so you're never on a stale copy. For a
+# merged/closed PR whose head branch was deleted from origin, it falls back to
+# `refs/pull/<n>/head`; if GitHub is unreachable, it falls back to a local
+# branch (the stamped one for a number, or the named branch itself), switched
+# to as-is (not updated).
+#
+# Exactly one plain id (not a range) with no -x is the only thing that means
+# "check out this PR" — you can't check out more than one at once, so anything
+# more flexible (multiple ids, a range, or -x) means "list this specific set"
+# instead of your own open PRs. Naming PRs explicitly isn't scoped to you —
+# same principle as `git pr merge <ids>` — and shows every state (open,
+# closed, merged), not just open.
 #
 # `git pr merge` touches shared remote state (it merges PRs on GitHub), but it
 # acts by default — pass -n/--dry-run to preview first. There is no --force;
@@ -69,9 +78,11 @@
 #   git pr                          list open PRs you authored ("<url> -- <title>")
 #   git pr -nt                      list them as bare URLs (--no-title)
 #   git pr <n|branch>                check out a PR by number, branch name, or URL
+#   git pr <ids...>                 (2+, or -x, or a range) list exactly those
+#                                   PRs instead — any author, any state
 #   git pr merge <n|branch|range>... merge the given PR(s); "824-830" is a range
 #   git pr merge --all              merge every mergeable PR you authored (-a)
-#   git pr merge ... -x <ids...>    exclude PR(s) (--exclude; also takes ranges)
+#   git pr ... -x <ids...>          exclude PR(s) (--exclude; also takes ranges)
 #   git pr merge ... -n             preview instead (--dry-run)
 #   git pr merge ... --method squash|merge|rebase   override the merge method
 #   git pr -h                       show this help
@@ -96,18 +107,24 @@ git pr — list your open PRs, check one out, or merge one or more.
   git pr -nt                  list them as bare URLs (--no-title)
   git pr <n|branch>           check out that PR (by number, branch name, or
                               URL), updated to the PR's latest
+  git pr <ids...>             2+ ids (or -x, or a range): list exactly those
+                              PRs instead — any author, any state
   git pr merge <ids...>       merge the given PR(s) (number, branch, URL, or a
                               "824-830" range — all mixable), rebasing what
                               needs it, skipping what needs a human
   git pr merge --all          merge every mergeable PR YOU authored (-a)
-  git pr merge ... -x <ids>   exclude PR(s) from either form (--exclude; also
-                              takes ranges — everything after -x is excluded
-                              until the next flag)
+  git pr ... -x <ids>         exclude PR(s) from any of the above (--exclude;
+                              also takes ranges — everything after -x is
+                              excluded until the next flag)
   git pr merge ... -n         preview instead: show the plan, change nothing
   git pr -h                   show this help
 
 Uses the GitHub CLI (gh). Checkout falls back to refs/pull/<n>/head for deleted
 branches, or (offline) to the local branch.
+
+Exactly one plain id (not a range) with no -x checks it out — anything more
+flexible (multiple ids, a range, or -x) lists that set instead, since you
+can't check out more than one PR. Naming PRs explicitly isn't scoped to you.
 
 `git pr merge <ids>` merges exactly the PRs you named, whoever authored them.
 `git pr merge --all` (no ids) is a broad sweep, so it only ever considers PRs
@@ -144,28 +161,19 @@ while [ $# -gt 0 ]; do
     -nt|--no-title) notitle=1; in_exclude=0 ;;
     -a|--all) all=1; in_exclude=0 ;;
     -n|--dry-run) dry=1; in_exclude=0 ;;
-    -x|--exclude)
-      [ "$subcmd" = "merge" ] || {
-        echo "git pr: --exclude only applies to 'git pr merge'" >&2; exit 2; }
-      in_exclude=1 ;;
+    -x|--exclude) in_exclude=1 ;;
     --method) shift; method="${1:-}"; in_exclude=0 ;;
     -*) echo "git pr: unknown option '$1' (try -h)" >&2; exit 2 ;;
     *)
-      if [ "$subcmd" != "merge" ]; then
-        id="$1"
-      elif [ "$in_exclude" = 1 ]; then
-        raw_excludes+=("$1")
-      else
-        raw_targets+=("$1")
-      fi
+      if [ "$in_exclude" = 1 ]; then raw_excludes+=("$1"); else raw_targets+=("$1"); fi
       ;;
   esac
   shift
 done
 
 if [ "$subcmd" != "merge" ]; then
-  if [ "$all" = 1 ] || [ "$dry" = 1 ] || [ -n "$method" ] || [ "${#raw_excludes[@]}" -gt 0 ]; then
-    echo "git pr: --all/--exclude/--dry-run/--method only apply to 'git pr merge'" >&2; exit 2
+  if [ "$all" = 1 ] || [ "$dry" = 1 ] || [ -n "$method" ]; then
+    echo "git pr: --all/--dry-run/--method only apply to 'git pr merge'" >&2; exit 2
   fi
 else
   if [ "$all" = 1 ] && [ "${#raw_targets[@]}" -gt 0 ]; then
@@ -196,8 +204,19 @@ expand_ranges() {  # expand_ranges <out-array-name> <in-token...>
     fi
   done
 }
-merge_ids=(); expand_ranges merge_ids "${raw_targets[@]:-}"
-exclude_ids=(); expand_ranges exclude_ids "${raw_excludes[@]:-}"
+merge_ids=()
+[ "${#raw_targets[@]}" -gt 0 ] && expand_ranges merge_ids "${raw_targets[@]}"
+exclude_ids=()
+[ "${#raw_excludes[@]}" -gt 0 ] && expand_ranges exclude_ids "${raw_excludes[@]}"
+
+# Non-merge dispatch: exactly one plain (non-range) target and no excludes
+# still means "check out this PR" (the original, heavily-used behavior) —
+# anything more flexible (multiple ids, a range, or -x) means "list this
+# specific set" instead, since you can't check out more than one PR at once.
+if [ "$subcmd" != "merge" ] && [ "${#raw_targets[@]}" -eq 1 ] && [ "${#raw_excludes[@]}" -eq 0 ] \
+  && ! printf '%s' "${raw_targets[0]}" | grep -qE '^[0-9]+-[0-9]+$'; then
+  id="${raw_targets[0]}"
+fi
 
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
   echo "git pr: not inside a git repository" >&2; exit 1; }
@@ -450,17 +469,51 @@ if [ "$subcmd" = "merge" ]; then
 fi
 
 # ══════════════════════════════════════════════════════════════════════════
-# No argument: list your open PRs in this repo (titles by default).
+# No single checkout target: list PRs (titles by default) instead.
+#   - no targets            → your open PRs (optionally minus -x excludes)
+#   - targets (multi/range) → exactly those PRs, any author, any state
+#     (naming them explicitly is not scoped to you — same principle as
+#     `git pr merge <ids>`), optionally minus -x excludes
 # ══════════════════════════════════════════════════════════════════════════
-if [ -z "$id" ]; then
-  # Sorted ascending by PR number (gh's own default is newest-first).
-  if [ "$notitle" = 1 ]; then
-    gh pr list --author "@me" --state open --limit 100 --json number,url \
-      --jq 'sort_by(.number) | .[].url'
+if [ "$subcmd" != "merge" ] && [ -z "$id" ]; then
+  rows=""
+  if [ "${#merge_ids[@]}" -eq 0 ]; then
+    rows="$(gh pr list --author "@me" --state open --limit 100 --json number,url,title \
+      --jq '.[] | "\(.number)\t\(.url)\t\(.title)"' 2>/dev/null || true)"
   else
-    gh pr list --author "@me" --state open --limit 100 --json number,url,title \
-      --jq 'sort_by(.number) | .[] | "\(.url) -- \(.title)"'
+    for tid in "${merge_ids[@]}"; do
+      row="$(gh pr view "$tid" --json number,url,title,state \
+        --jq '"\(.number)\t\(.url)\t\(.title)\t\(.state)"' 2>/dev/null || true)"
+      [ -n "$row" ] && rows="$rows
+$row"
+    done
   fi
+
+  if [ "${#exclude_ids[@]}" -gt 0 ]; then
+    exclude_nums=""
+    for xid in "${exclude_ids[@]}"; do
+      xn="$(gh pr view "$xid" --json number --jq '.number' 2>/dev/null || true)"
+      [ -n "$xn" ] && exclude_nums="$exclude_nums $xn"
+    done
+    filtered=""
+    while IFS=$'\t' read -r num rest; do
+      [ -z "$num" ] && continue
+      case " $exclude_nums " in *" $num "*) continue ;; esac
+      filtered="$filtered
+$num	$rest"
+    done <<EOF
+$rows
+EOF
+    rows="$filtered"
+  fi
+
+  printf '%s\n' "$rows" | sed '/^$/d' | sort -t "$(printf '\t')" -k1,1n -u \
+    | while IFS=$'\t' read -r num url title state; do
+        line="$url"
+        [ "$notitle" = 1 ] || line="$url -- $title"
+        [ -n "${state:-}" ] && [ "$state" != "OPEN" ] && line="$line [$state]"
+        echo "$line"
+      done
   exit 0
 fi
 
