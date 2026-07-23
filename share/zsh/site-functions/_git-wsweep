@@ -1,0 +1,7 @@
+#autoload
+#
+# Completion for `git wsweep` — real branches for -b's value.
+case ${words[CURRENT-1]} in
+  -b|--base) _gtools_branches; return ;;
+esac
+_alternative 'flags:flag:(-f --force -n --dry-run -b --base -h --help)'

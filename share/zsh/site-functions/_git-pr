@@ -1,0 +1,24 @@
+#autoload
+#
+# Completion for `git pr` (list / checkout / merge). Candidates are real open
+# PRs and real branches — nothing generated or guessed.
+if (( CURRENT == 2 )); then
+  _alternative \
+    'subcommands:subcommand:(merge)' \
+    'flags:flag:(-h --help -nt --no-title)' \
+    'ids:PR or branch:_gtools_pr_ids'
+  return
+fi
+if [[ ${words[2]} == merge ]]; then
+  case ${words[CURRENT-1]} in
+    --method) compadd merge squash rebase; return ;;
+    -x|--exclude) _gtools_pr_ids; return ;;
+  esac
+  _alternative \
+    'flags:flag:(-a --all -x --exclude -n --dry-run --method -h --help)' \
+    'ids:PR, branch, or NNN-MMM range:_gtools_pr_ids'
+  return
+fi
+_alternative \
+  'flags:flag:(-h --help -nt --no-title)' \
+  'ids:PR, branch, or URL:_gtools_pr_ids'

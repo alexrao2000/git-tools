@@ -27,25 +27,29 @@ place. Make sure the target dir is on your `PATH`.
 
 ## zsh completion
 
-`install.sh` also symlinks a completion file and prints the line to add. It
-gives Tab-completion for every command above (real branches, real open PRs —
-nothing generated or guessed, same principle as `cd` completing real
-directories), plus one more thing: `git switch -c <TAB>` and
-`git checkout -b <TAB>` cycle through short *words already used in this
-repo's branch names* (via `_multi_parts`), so naming a new branch is Tab
-through real precedent instead of typing a sentence.
+`install.sh` also symlinks a set of plain zsh completion functions into
+`<target>/../share/zsh/site-functions` — real Tab-completion for every
+command above (real branches, real open PRs — nothing generated or guessed,
+same principle as `cd` completing real directories). No `source` line, no
+compinit-ordering requirement: these autoload the standard way, so they just
+work once that directory is on your `$fpath`.
+
+`git new` is the one built specifically to fix chronically-verbose
+LLM-authored branch names: `git new <TAB>` cycles through short *words
+already used in this repo's existing branch names* (via `_multi_parts`), so
+composing a name is a few Tab presses instead of typing a sentence — and it
+works no matter what's driving your terminal (Claude, Codex, you by hand),
+since it fires on the completion itself, not on any tool choosing to
+cooperate.
+
+If `install.sh` doesn't detect that directory on your `$fpath` already, it
+prints the one-time setup (the standard Homebrew zsh-completions snippet —
+not gtools-specific, and skippable if you already have something like it):
 
 ```zsh
-# ~/.zshrc, ABOVE any `compinit` line:
-source "~/.local/share/zsh/git-tools-completion.zsh"
-# (install.sh prints the exact path for your setup — differs if you installed
-# via Homebrew or a custom -b dir)
+fpath=("~/.local/share/zsh/site-functions" $fpath)   # path install.sh prints
+autoload -Uz compinit && compinit
 ```
-
-Has to be `source`d, not just on your `fpath` — and specifically *before*
-`compinit`'s first run, so it wins the `(( $+functions[_git-switch] )) || ...`
-guard that zsh's own `_git` uses for its built-ins. See the file's own header
-for why.
 
 ## Commands
 
@@ -56,6 +60,7 @@ for why.
 | `git sync` | Rebase branch(es) onto `origin/<default>` and push: `git fetch → git rebase → git push --force-with-lease`. Bare `git sync` does the current branch. **Targets mirror `git pr merge`**: name one or more branches to sync — a PR number, head branch, URL, or `824-830`-style range, all mixable (numeric/URL resolve to the PR's head branch via `gh`; a plain branch name is used as-is, offline). `-x`/`--exclude <ids...>` drops branch(es)/PR(s) from either an explicit list or `--all` (same forms, ranges included). On the base branch (or a target that IS the base) it acts as a safe pull instead (`git fetch → git rebase origin/<base>`, no push). **When a rebase can't complete automatically it reacts like `git pr merge`: it aborts the rebase (branch left untouched, never half-rebased), skips it, and lists it at the end as needing manual resolution** — never a conflicted rebase left in your tree, never a failed run (resolve one by hand with `git checkout <branch> && git rebase origin/<base>`). `--all`/`-a` sweeps the whole repo: fast-forwards local base, **prunes** branches already merged into it, rebases + pushes the rest; purely-local (never-pushed) branches are rebased but not pushed; squash-merged branches look unmerged so they're rebased, not pruned (use `git sweep -f`). Guards against dirty trees. No `--method` (sync only ever rebases). `-n` dry-run, `-b NAME` base. |
 | `git pr [<n>]` | **List** your open PRs in this repo as `<url> -- <title>` (bare `git pr`); `--no-title`/`-nt` prints just the URLs, one per line (easy to pipe). **Or check one out**: `git pr <n\|branch\|url>` runs `gh pr checkout` (the argument can be a PR number, head branch name, or PR URL), creating the branch or fast-forwarding an existing one to the PR's latest — always up to date. Checkout falls back to `refs/pull/<n>/head` for merged/closed PRs whose branch was deleted, and — if GitHub is unreachable — to a local branch stamped with the PR number (switched to as-is, not updated). **Or merge one or more**: `git pr merge <id...>` merges exactly the PRs you name (number/branch/URL/`824-830`-style range, all mixable, any author — you named them, so it's explicit), or `git pr merge --all`/`-a` (no ids) sweeps every mergeable PR **you authored** — that broad form never touches anyone else's PR, and neither form ever bypasses branch protection. `-x`/`--exclude <ids...>` drops PR(s) from either form (same id forms, including ranges — e.g. `git pr merge 824-830 -x 825 827`). Touches shared remote state (it merges PRs on GitHub), so it's worth knowing it acts by default; pass `-n`/`--dry-run` to preview the plan first without changing anything. It processes the targeted PRs in an order that minimizes conflicts (least-entangled first, by shared changed files — no LLM, just a conflict-adjacency count); for each PR, clean merges directly, needing-an-update rebases onto its base in a scratch worktree (never touches your current branch) and pushes, blocked/draft/unresolvable are always skipped. `--method merge\|squash\|rebase` overrides the merge method (default: the repo's own). Branches aren't auto-deleted — run `git sweep` after. Needs the GitHub CLI (`gh`). |
 | `git slug <words...>` | Turn a free-form description into a short, hyphenated branch-name slug — mechanical, not clever: lowercase, drop punctuation/filler words, keep the first few significant words, hard-cap the total length (default 3 words / 24 chars, `-n`/`-l` to adjust — `-l` always wins). `-t`/`--ticket <id>` prefixes it. The point is a hard ceiling: `git switch -c "$(git slug fix the markdown deep nesting crash)"` → `fix-markdown-deep`, however long the description. |
+| `git new <name>` | Create `<name>` and switch to it (`git switch -c`, from the current branch unless `-b`/`--base <base>` is given) — a thin wrapper whose real point is Tab-completion: with the zsh completions enabled (see below), `git new <TAB>` cycles through short words already used in this repo's branch names, so composing a short name takes a few Tab presses instead of typing a sentence — and it works regardless of what's driving the terminal, since it's the shell doing the completing, not any agent. |
 | `git haspr [<branch>]` | Check whether a branch (current branch by default) already has a PR, in **any state** — open, closed, or merged — so it catches one that already landed or got closed before you create a duplicate. Prints the URL + state and exits 0 if found; prints a clear message and exits 1 otherwise, so it's usable in scripts (`git haspr \|\| gh pr create`). Needs the GitHub CLI (`gh`). |
 | `git done` | The bookend to `git pr`: switch back to the base (`origin/<default>`, usually main), **fast-forward it to origin** (so you land on an up-to-date main with the just-merged PR), and delete the branch you just left. Safe by default (`git branch -d`) so hopping back can't silently drop unmerged work — squash-merged branches look unmerged and are refused too, so pass `-f`/`--force` (`git branch -D`) when you know the branch is done. The fast-forward is best-effort: it's skipped with a note if you're offline or local base has diverged (never a merge commit). On a detached HEAD it just switches back to base; **already on the base, it just pulls** (fetch + fast-forward — nothing to delete). `-n` dry-run, `-b NAME` base. |
 

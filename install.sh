@@ -32,16 +32,19 @@ for m in "$here"/man/git-*.1; do
   echo "linked  $name  →  $mandir/$name"
 done
 
-# zsh completion: symlink next to the man pages (<target>/../share/zsh), and
-# print the source line — unlike bin/man, this can't just be "on PATH"; it
-# has to be `source`d from ~/.zshrc, and specifically BEFORE compinit runs
-# (see the file's own header for why).
-zshdir="$(dirname "$target")/share/zsh"
-mkdir -p "$zshdir"
-completion="$here/share/zsh/git-tools-completion.zsh"
-if [ -f "$completion" ]; then
-  ln -sf "$completion" "$zshdir/git-tools-completion.zsh"
-  echo "linked  git-tools-completion.zsh  →  $zshdir/git-tools-completion.zsh"
+# zsh completion: symlink into <target>/../share/zsh/site-functions, the
+# standard Homebrew/zsh convention — these are plain autoloadable functions
+# (one per file, named to match), so they just work once that directory is on
+# $fpath. No `source` line, no compinit-ordering requirement, unlike a
+# hand-rolled completion script.
+fndir="$(dirname "$target")/share/zsh/site-functions"
+mkdir -p "$fndir"
+if [ -d "$here/share/zsh/site-functions" ]; then
+  for c in "$here"/share/zsh/site-functions/*; do
+    name="$(basename "$c")"
+    ln -sf "$c" "$fndir/$name"
+  done
+  echo "linked  $(basename "$fndir")/*  →  $fndir/"
 fi
 
 case ":$PATH:" in
@@ -74,10 +77,29 @@ else
   command -v gh >/dev/null 2>&1 && echo "   Now run 'gh auth login' once to authenticate."
 fi
 
+# Best-effort check: is $fndir already on zsh's fpath in an interactive
+# shell? If so, completion (incl. `git new` for short-name Tab-cycling) just
+# works already — nothing more to do. If not, this is the one-time GENERAL
+# Homebrew zsh-completions snippet, not anything gtools-specific — it also
+# covers every other formula's completions, present and future.
+on_fpath=0
+if command -v zsh >/dev/null 2>&1; then
+  case ":$(zsh -ic 'echo $fpath' 2>/dev/null):" in
+    *":$fndir:"*) on_fpath=1 ;;
+  esac
+fi
+
 echo
-echo "For Tab-completion of these commands (and short-name cycling for new"
-echo "branches on 'git switch -c' / 'git checkout -b'), add this to ~/.zshrc"
-echo "ABOVE any 'compinit' line:"
-echo "       source \"$zshdir/git-tools-completion.zsh\""
+if [ "$on_fpath" = 1 ]; then
+  echo "zsh completion is already set up — Tab-completion (incl. 'git new' for"
+  echo "short-name cycling on new branches) works with no further action."
+else
+  echo "For Tab-completion of these commands — including 'git new <TAB>' for"
+  echo "cycling through short names instead of typing a long one — add this to"
+  echo "~/.zshrc (the general Homebrew zsh-completions snippet, not specific to"
+  echo "gtools; skip it if you already have something like it):"
+  echo "       fpath=(\"$fndir\" \$fpath)"
+  echo "       autoload -Uz compinit && compinit"
+fi
 echo
 echo "Done. Try:  git sweep -h   (or full man page: git sweep --help)"

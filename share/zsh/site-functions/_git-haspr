@@ -1,0 +1,6 @@
+#autoload
+#
+# Completion for `git haspr [branch]` — real existing branches.
+_alternative \
+  'flags:flag:(-h --help)' \
+  'branches:branch:_gtools_branches'

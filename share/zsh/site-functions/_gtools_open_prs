@@ -1,0 +1,6 @@
+#autoload
+#
+# Open PR numbers for this repo, "NUMBER:head-branch" — best effort, silent
+# if gh/network is unavailable (never blocks completion on an error).
+gh pr list --state open --limit 200 --json number,headRefName \
+  --jq '.[] | "\(.number):\(.headRefName)"' 2>/dev/null
