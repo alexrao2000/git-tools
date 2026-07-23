@@ -6,6 +6,13 @@
 # accepted. Flags are only offered once you type a leading '-', so a bare TAB
 # is PRs-first instead of a wall of options.
 local -a alts
+# These are all repo-scoped (PRs, branches, the current branch). Outside a
+# repo there's nothing meaningful to offer — say so, rather than dangling a
+# misleading ./@ that couldn't resolve to anything anyway.
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  _message -r 'not inside a git repository'
+  return
+fi
 if (( CURRENT == 2 )); then
   alts=('subcommands:subcommand:(merge list)' 'current:current branch:(. @)' 'ids:PR or branch:_gtools_pr_ids')
   [[ $PREFIX == -* ]] && alts+=('flags:flag:(-h --help -nt --no-title -a --all -x --exclude)')
