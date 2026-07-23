@@ -67,6 +67,13 @@ autoload -Uz compinit && compinit
 Each takes `-h` for a short usage summary, or `--help` to open its full man
 page (installed to `share/man/man1` by `install.sh` and by Homebrew).
 
+Genuinely shared logic (the color/step/warn output helpers, base-branch
+resolution, PR-range expansion) lives once in `lib/git-tools-common.sh`,
+which each command locates relative to its own real path (following the
+symlink it's installed as) and sources — not copy-pasted per file. Only
+things that are *coincidentally* similar but reasonably diverge per command
+stay separate.
+
 ## Requirements
 
 - `bash` (works on macOS's bash 3.2)

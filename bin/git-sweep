@@ -27,15 +27,16 @@
 #
 set -euo pipefail
 
-# Colorized step output on a terminal (respects NO_COLOR). Mirrored across the
-# git-* tools so they narrate their actions in one consistent format.
-if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
-  _ok=$'\033[32m'; _warn=$'\033[33m'; _dim=$'\033[2m'; _off=$'\033[0m'
-else
-  _ok=''; _warn=''; _dim=''; _off=''
-fi
-step() { printf '%s✓%s %s\n' "$_ok" "$_off" "$1"; }
-warn() { printf '%s!%s %s\n' "$_warn" "$_off" "$1" >&2; }
+# Resolve this script's real location (following symlinks — it's installed as
+# one) to find lib/git-tools-common.sh, shared across the git-* tools: the
+# color/step/warn helpers and resolve_base().
+_src="${BASH_SOURCE[0]}"
+while [ -h "$_src" ]; do
+  _dir="$(cd -P "$(dirname "$_src")" && pwd)"
+  _src="$(readlink "$_src")"
+  [[ "$_src" != /* ]] && _src="$_dir/$_src"
+done
+source "$(cd -P "$(dirname "$_src")/.." && pwd)/lib/git-tools-common.sh"
 
 usage() {
   cat <<'EOF'
@@ -85,19 +86,7 @@ git fetch --prune --quiet 2>/dev/null || true
 
 # Choose a base branch NAME if none given: origin's default (origin/HEAD), else
 # main/master (local or on origin), else the current branch.
-if [ -z "$base" ]; then
-  base=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null \
-    | sed 's#^origin/##' || true)
-  if [ -z "$base" ]; then
-    for b in main master; do
-      if git show-ref --verify --quiet "refs/heads/$b" \
-         || git show-ref --verify --quiet "refs/remotes/origin/$b"; then
-        base=$b; break
-      fi
-    done
-  fi
-  [ -n "$base" ] || base=$(git rev-parse --abbrev-ref HEAD)
-fi
+base="$(resolve_base "$base")"
 
 # Judge "merged" against the remote-tracking tip (origin/<base>) when it exists:
 # the fetch above just updated it, so a branch merged upstream is detected even

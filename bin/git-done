@@ -26,15 +26,16 @@
 #
 set -euo pipefail
 
-# Colorized step output on a terminal (respects NO_COLOR). Each phase — switch,
-# fast-forward, delete — prints one clear line instead of git's raw chatter.
-if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then
-  _ok=$'\033[32m'; _warn=$'\033[33m'; _dim=$'\033[2m'; _off=$'\033[0m'
-else
-  _ok=''; _warn=''; _dim=''; _off=''
-fi
-step() { printf '%s✓%s %s\n' "$_ok" "$_off" "$1"; }
-warn() { printf '%s!%s %s\n' "$_warn" "$_off" "$1" >&2; }
+# Resolve this script's real location (following symlinks — it's installed as
+# one) to find lib/git-tools-common.sh, shared across the git-* tools: the
+# color/step/warn helpers and resolve_base().
+_src="${BASH_SOURCE[0]}"
+while [ -h "$_src" ]; do
+  _dir="$(cd -P "$(dirname "$_src")" && pwd)"
+  _src="$(readlink "$_src")"
+  [[ "$_src" != /* ]] && _src="$_dir/$_src"
+done
+source "$(cd -P "$(dirname "$_src")/.." && pwd)/lib/git-tools-common.sh"
 
 # Fetch and fast-forward <base> to origin/<base>, narrating the result. Best
 # effort: fast-forward only (never a merge commit), note it if diverged/offline.
@@ -102,12 +103,8 @@ detached=0
 current=$(git rev-parse --abbrev-ref HEAD)
 [ "$current" != "HEAD" ] || detached=1
 
-# Base = origin's default branch unless told otherwise (matches git sync/sweep).
-if [ -z "$base" ]; then
-  base=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null \
-    | sed 's#^origin/##' || true)
-  [ -n "$base" ] || base=main
-fi
+# Base = origin's default branch unless told otherwise (shared with sync/sweep).
+base="$(resolve_base "$base")"
 
 git show-ref --verify --quiet "refs/heads/$base" \
   || git show-ref --verify --quiet "refs/remotes/origin/$base" || {
