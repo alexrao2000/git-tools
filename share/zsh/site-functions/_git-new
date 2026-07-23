@@ -13,7 +13,7 @@ case ${words[CURRENT-1]} in
   -b|--base) _gtools_branches; return ;;
 esac
 if [[ ${words[CURRENT]} == -* ]]; then
-  _alternative 'flags:flag:(-b --base -h --help)'
+  _alternative 'flags:Flag:(-b --base -h --help)'
   return
 fi
 local -a tokens

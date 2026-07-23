@@ -4,10 +4,12 @@
 # column — for `git pr`, which is about picking a PR. Numbers only, no branch
 # list: dumping every local/remote branch here would bury the handful of PRs
 # you actually want (you can still type a branch name; it just isn't offered).
-# The inserted value is the bare number (-a pr_nums); the padded "NUM -- title"
-# is display-only (-d pr_descs). Uses compadd (not _describe) on purpose:
-# _describe misbehaves when used as an _alternative action, which is how these
-# helpers are called.
+# The inserted value is the bare number; the padded "NUM -- title" is display
+# only. Uses _wanted (not raw `compadd -X`, and not `_describe`): _wanted is
+# the correct helper for use inside an _alternative action — it produces a
+# group header that honors the ':completion:*:descriptions' format zstyle (so
+# the header can be styled to stand out), and unlike _describe it nests
+# correctly and still generates matches.
 local -a prs pr_nums pr_descs
 prs=(${(f)"$(_gtools_open_prs)"})
 local p num rest branch title w=0
@@ -18,4 +20,6 @@ for p in $prs; do
   pr_nums+=("$num")
   pr_descs+=("${(l:w:)num} -- ${title}")
 done
-(( $#pr_nums )) && compadd -X 'open PRs' -d pr_descs -a pr_nums
+(( $#pr_nums )) || return
+local expl
+_wanted open-prs expl 'Open PRs' compadd -d pr_descs -a pr_nums

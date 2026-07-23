@@ -5,5 +5,5 @@ if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   _message -r 'not inside a git repository'; return
 fi
 _alternative \
-  'flags:flag:(-h --help)' \
-  'branches:branch:_gtools_branches'
+  'flags:Flag:(-h --help)' \
+  'branches:Branch:_gtools_branches'

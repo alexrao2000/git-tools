@@ -9,5 +9,5 @@ case ${words[CURRENT-1]} in
   -x|--exclude) _gtools_pr_ids; return ;;
 esac
 _alternative \
-  'flags:flag:(-a --all -x --exclude -b --base -n --dry-run -h --help)' \
-  'ids:branch, PR, or NNN-MMM range:_gtools_pr_ids'
+  'flags:Flag:(-a --all -x --exclude -b --base -n --dry-run -h --help)' \
+  'ids:Branch, PR, or NNN-MMM range:_gtools_pr_ids'
