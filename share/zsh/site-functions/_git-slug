@@ -1,8 +1,0 @@
-#autoload
-#
-# Completion for `git slug` — just its flags; the words are free-form text.
-case ${words[CURRENT-1]} in
-  -n|-l) return ;;
-  -t|--ticket) return ;;
-esac
-_alternative 'flags:flag:(-n -l -t --ticket -h --help)'
