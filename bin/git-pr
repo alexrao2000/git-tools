@@ -181,16 +181,22 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-if [ "$subcmd" != "merge" ]; then
-  if [ "$all" = 1 ] || [ "$dry" = 1 ] || [ -n "$method" ]; then
-    echo "git pr: --all/--dry-run/--method only apply to 'git pr merge'" >&2; exit 2
-  fi
-else
+if [ "$subcmd" = "merge" ]; then
   if [ "$all" = 1 ] && [ "${#raw_targets[@]}" -gt 0 ]; then
     echo "git pr merge: can't combine --all with specific PRs" >&2; exit 2
   fi
   if [ "$all" = 0 ] && [ "${#raw_targets[@]}" -eq 0 ]; then
     echo "git pr merge: specify PR(s) to merge (number, branch, or URL — 'NNN-MMM' for a range), or --all for every one of your open PRs" >&2; exit 2
+  fi
+else
+  # --all is also valid here (explicitly "all my open PRs", same meaning as
+  # the implicit default when no targets are given) so its grammar mirrors
+  # `git pr merge --all`; -n/--method genuinely don't apply to listing.
+  if [ "$dry" = 1 ] || [ -n "$method" ]; then
+    echo "git pr: --dry-run/--method only apply to 'git pr merge'" >&2; exit 2
+  fi
+  if [ "$all" = 1 ] && [ "${#raw_targets[@]}" -gt 0 ]; then
+    echo "git pr: can't combine --all with specific PRs" >&2; exit 2
   fi
 fi
 

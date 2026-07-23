@@ -68,7 +68,10 @@ below for the exact range syntax); naming PRs this way is not scoped to
 you, and shows every state (open, closed, merged), not just open.
 .RB ( \-x / \-\-exclude
 works the same as under
-.BR "git pr merge" .)
+.BR "git pr merge" ; " " \-a / \-\-all
+is also accepted here, explicitly meaning "your open PRs" \(em the same thing
+as giving no IDs at all, spelled out for symmetry with
+.BR "git pr merge \-\-all" .)
 As a holdover from before
 .B list
 was its own subcommand, giving
@@ -190,8 +193,12 @@ When listing, print bare URLs (one per line) instead of
 .BR \-a ", " \-\-all
 With
 .BR "git pr merge" ,
-merge every mergeable PR you authored instead of specific ones. Cannot be
-combined with explicit IDs.
+merge every mergeable PR you authored instead of specific ones. With
+.B "git pr"
+or
+.BR "git pr list" ,
+an explicit way to say "your open PRs" (the same as giving no IDs). Cannot be
+combined with explicit IDs, in either case.
 .TP
 .BR \-x ", " \-\-exclude " " \fIID\fR " ..."
 With
