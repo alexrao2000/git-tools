@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+#
+# git-haspr — check whether a branch already has a pull request.
+#
+# Checks all states (open/closed/merged), not just open, so it also catches
+# "yes, but it was already merged" or "yes, but it got closed" before you go
+# create a duplicate. Exits 0 and prints the PR('s) URL if any exist for the
+# branch, exits 1 with a clear "no PR" message otherwise — so it's usable in
+# scripts (`if git haspr; then ...`).
+#
+# Usage:
+#   git haspr           check the current branch
+#   git haspr <branch>  check a specific branch
+#   git haspr -h        show this help
+#
+set -euo pipefail
+
+case "${1:-}" in
+  -h|--help)
+    cat <<'EOF'
+git haspr — check whether a branch already has a pull request.
+
+Checks every state (open/closed/merged), so it also catches a PR that was
+already merged or closed. Exits 0 and prints the PR(s) if any exist for the
+branch, exits 1 with a clear message otherwise — usable in scripts:
+  if git haspr; then ...; fi
+
+Usage:
+  git haspr           check the current branch
+  git haspr <branch>  check a specific branch
+  git haspr -h        show this help
+EOF
+    exit 0 ;;
+esac
+
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
+  echo "git haspr: not inside a git repository" >&2; exit 1; }
+command -v gh >/dev/null 2>&1 || {
+  echo "git haspr: needs the GitHub CLI ('gh') — https://cli.github.com" >&2; exit 1; }
+
+branch="${1:-}"
+if [ -z "$branch" ]; then
+  branch="$(git rev-parse --abbrev-ref HEAD)"
+  [ "$branch" != "HEAD" ] || {
+    echo "git haspr: detached HEAD — name a branch" >&2; exit 1; }
+fi
+
+out="$(gh pr list --head "$branch" --state all --json number,url,state \
+  --jq '.[] | "\(.url)  [\(.state)]"' 2>/dev/null)" || {
+  echo "git haspr: couldn't query GitHub for '$branch'" >&2; exit 1; }
+
+if [ -n "$out" ]; then
+  printf '%s\n' "$out"
+  exit 0
+else
+  echo "git haspr: no PR for '$branch'"
+  exit 1
+fi
