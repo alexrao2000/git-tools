@@ -1,18 +1,21 @@
 #autoload
 #
-# Open PR numbers, each shown with its title — for `git pr`, which is about
-# picking a PR. Just the numbers, no branch list: dumping every local/remote
-# branch here would bury the handful of PRs you actually want in noise (you
-# can still type a branch name; it just isn't offered). compadd must run in
-# THIS shell, so candidates are gathered into arrays first, never piped into
-# a subshell.
+# Open PRs, shown as "NUM -- title" with the numbers right-aligned into a
+# column — for `git pr`, which is about picking a PR. Numbers only, no branch
+# list: dumping every local/remote branch here would bury the handful of PRs
+# you actually want (you can still type a branch name; it just isn't offered).
+# The inserted value is the bare number (-a pr_nums); the padded "NUM -- title"
+# is display-only (-d pr_descs). Uses compadd (not _describe) on purpose:
+# _describe misbehaves when used as an _alternative action, which is how these
+# helpers are called.
 local -a prs pr_nums pr_descs
 prs=(${(f)"$(_gtools_open_prs)"})
-local p num rest branch title
+local p num rest branch title w=0
+for p in $prs; do num="${p%%$'\t'*}"; (( ${#num} > w )) && w=${#num}; done
 for p in $prs; do
   num="${p%%$'\t'*}"; rest="${p#*$'\t'}"
   branch="${rest%%$'\t'*}"; title="${rest#*$'\t'}"
   pr_nums+=("$num")
-  pr_descs+=("$num  $title")
+  pr_descs+=("${(l:w:)num} -- ${title}")
 done
 (( $#pr_nums )) && compadd -X 'open PRs' -d pr_descs -a pr_nums

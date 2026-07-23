@@ -4,5 +4,30 @@
 # best effort, silent if gh/network is unavailable (never blocks completion
 # on an error). Tab-separated (not ':') because PR titles routinely contain
 # colons.
-gh pr list --state open --limit 200 --json number,headRefName,title \
-  --jq '.[] | "\(.number)\t\(.headRefName)\t\(.title)"' 2>/dev/null
+#
+# Result is cached per-repo for a short TTL so repeated <TAB>s don't each pay
+# for a `gh pr list` round-trip (~0.5s). The cache is only refreshed once the
+# TTL lapses; delete the cache file (or wait it out) to force a refresh.
+local ttl=30
+local top; top="$(git rev-parse --show-toplevel 2>/dev/null)" || return
+local dir="${TMPDIR:-/tmp}/gtools-comp"
+[[ -d $dir ]] || mkdir -p "$dir" 2>/dev/null
+local cache="$dir/prs${top//\//_}"
+
+local now mtime
+now="$(date +%s 2>/dev/null || echo 0)"
+mtime="$(stat -f %m "$cache" 2>/dev/null || echo 0)"
+if [[ -f $cache ]] && (( now - mtime < ttl )); then
+  cat "$cache"
+  return
+fi
+
+local out
+out="$(gh pr list --state open --limit 200 --json number,headRefName,title \
+  --jq '.[] | "\(.number)\t\(.headRefName)\t\(.title)"' 2>/dev/null)"
+if [[ -n $out ]]; then
+  print -r -- "$out" >| "$cache" 2>/dev/null
+  print -r -- "$out"
+elif [[ -f $cache ]]; then
+  cat "$cache"   # gh failed (offline?) — stale is better than nothing
+fi

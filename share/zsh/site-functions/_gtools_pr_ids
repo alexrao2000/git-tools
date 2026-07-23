@@ -1,9 +1,9 @@
 #autoload
 #
-# PR numbers (with titles) + branch names, for commands that take EITHER as a
-# target — i.e. `git sync`, where you routinely sync a plain branch. `git pr`
-# deliberately uses _gtools_pr_nums instead (PRs only): it's about picking a
-# PR, so the full branch list there is just noise.
+# Open PRs (as "NUM -- title") + branch names, for commands that take EITHER
+# as a target — i.e. `git sync`, where you routinely sync a plain branch.
+# `git pr` deliberately uses _gtools_pr_nums instead (PRs only): it's about
+# picking a PR, so the full branch list there is just noise.
 _gtools_pr_nums
 local -a branches
 branches=(${(f)"$(_gtools_branches)"})
