@@ -1,43 +1,37 @@
 #autoload
 #
 # Open PRs as completion candidates for `git pr` — the value inserted is the
-# bare PR number; the display is "NUM -- title" with numbers right-aligned.
-# Split into two TAGS so ownership can be colored properly: "your-prs" and
-# "other-prs" (the latter also annotated "(@author)"). Coloring itself is a
-# `list-colors` zstyle keyed by these tag names (see ~/.zshrc) — NOT escape
-# codes embedded here: zsh's completion list renderer shows literal bytes
-# for ANSI codes put directly in a -d string (confirmed — they don't render),
-# whereas `list-colors` is the actual supported mechanism for colorizing
-# completion list entries, tag-scoped, and works correctly with menu-select.
+# bare PR number; the display is "NUM -- title" with numbers right-aligned,
+# others' PRs additionally suffixed "(@author)". One tag/group ('open-prs',
+# one 'Open PRs' header) — coloring differentiates ownership per line instead
+# of a second header: a `list-colors` zstyle (see ~/.zshrc) matches on the
+# "(@" suffix to color others' PRs differently from yours. (Not escape codes
+# embedded here: zsh's completion list renderer shows literal bytes for ANSI
+# codes put directly in a -d string — confirmed, they don't render — whereas
+# list-colors is the actual supported, properly-rendered mechanism.)
 #
-# Checking out another person's PR is a core use of `git pr`, so both groups
-# are offered; naming/merging stays your call — `git pr merge --all` and the
-# bare `git pr` listing are scoped to you in the command itself.
+# Checking out another person's PR is a core use of `git pr`, so both are
+# offered; naming/merging stays your call — `git pr merge --all` and the bare
+# `git pr` listing are scoped to you in the command itself.
 local -a prs
 prs=(${(f)"$(_gtools_open_prs)"})
 (( $#prs )) || return
 local me; me="$(_gtools_gh_login)"
 
-local -a mine_nums mine_descs other_nums other_descs
+local -a nums descs
 local p num rest branch author title w=0
 for p in $prs; do num="${p%%$'\t'*}"; (( ${#num} > w )) && w=${#num}; done
 for p in $prs; do
   num="${p%%$'\t'*}"; rest="${p#*$'\t'}"
   branch="${rest%%$'\t'*}"; rest="${rest#*$'\t'}"
   author="${rest%%$'\t'*}"; title="${rest#*$'\t'}"
+  nums+=("$num")
   if [[ -z $me || $author == $me ]]; then
-    # No login cached yet (first Tab before the bg refresh) → treat as yours
-    # so everything still shows; it resolves into the right groups next Tab.
-    mine_nums+=("$num"); mine_descs+=("${(l:w:)num} -- ${title}")
+    descs+=("${(l:w:)num} -- ${title}")
   else
-    other_nums+=("$num"); other_descs+=("${(l:w:)num} -- ${title}  (@${author})")
+    descs+=("${(l:w:)num} -- ${title}  (@${author})")
   fi
 done
 
 local expl
-if (( $#mine_nums )); then
-  _wanted your-prs expl 'Your open PRs' compadd -d mine_descs -a mine_nums
-fi
-if (( $#other_nums )); then
-  _wanted other-prs expl "Others' open PRs" compadd -d other_descs -a other_nums
-fi
+_wanted open-prs expl 'Open PRs' compadd -d descs -a nums
