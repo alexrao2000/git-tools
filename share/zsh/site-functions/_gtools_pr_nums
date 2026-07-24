@@ -1,45 +1,43 @@
 #autoload
 #
 # Open PRs as completion candidates for `git pr` — the value inserted is the
-# bare PR number; the display is "● NUM -- title" with numbers right-aligned.
-# A per-line colored bullet marks ownership so it stays readable even while
-# arrow-navigating the menu (a group header would scroll out of view):
-#   - GREEN  ● = yours
-#   - YELLOW ● = someone else's (also annotated "(@author)")
-# Checking out another person's PR is a core use of `git pr`, so both are
-# offered; naming/merging stays your call — `git pr merge --all` and the bare
-# `git pr` listing are scoped to you in the command itself.
+# bare PR number; the display is "NUM -- title" with numbers right-aligned.
+# Split into two TAGS so ownership can be colored properly: "your-prs" and
+# "other-prs" (the latter also annotated "(@author)"). Coloring itself is a
+# `list-colors` zstyle keyed by these tag names (see ~/.zshrc) — NOT escape
+# codes embedded here: zsh's completion list renderer shows literal bytes
+# for ANSI codes put directly in a -d string (confirmed — they don't render),
+# whereas `list-colors` is the actual supported mechanism for colorizing
+# completion list entries, tag-scoped, and works correctly with menu-select.
 #
-# Numbers only, no branch list (that would bury the PRs). Uses _wanted — the
-# correct helper inside an _alternative action; its header honors the
-# descriptions format zstyle. The bullet's SGR escapes live in the DISPLAY
-# string only (-d); the inserted value stays the bare number (-a). Escapes in
-# a -d string render fine here because the list is single-column (long
-# titles), so zsh's width bookkeeping never has to pack columns. The bullet
-# resets with \e[39m (default FOREGROUND only), not \e[0m (full reset) — a full
-# reset would cancel menu-select's row highlight for the rest of the line when
-# you arrow onto it.
+# Checking out another person's PR is a core use of `git pr`, so both groups
+# are offered; naming/merging stays your call — `git pr merge --all` and the
+# bare `git pr` listing are scoped to you in the command itself.
 local -a prs
 prs=(${(f)"$(_gtools_open_prs)"})
 (( $#prs )) || return
 local me; me="$(_gtools_gh_login)"
 
-local -a nums descs
+local -a mine_nums mine_descs other_nums other_descs
 local p num rest branch author title w=0
 for p in $prs; do num="${p%%$'\t'*}"; (( ${#num} > w )) && w=${#num}; done
 for p in $prs; do
   num="${p%%$'\t'*}"; rest="${p#*$'\t'}"
   branch="${rest%%$'\t'*}"; rest="${rest#*$'\t'}"
   author="${rest%%$'\t'*}"; title="${rest#*$'\t'}"
-  nums+=("$num")
   if [[ -z $me || $author == $me ]]; then
-    # yours (or login not cached yet on the very first Tab) — green bullet
-    descs+=($'\e[32m●\e[39m '"${(l:w:)num} -- ${title}")
+    # No login cached yet (first Tab before the bg refresh) → treat as yours
+    # so everything still shows; it resolves into the right groups next Tab.
+    mine_nums+=("$num"); mine_descs+=("${(l:w:)num} -- ${title}")
   else
-    # someone else's — yellow bullet + author
-    descs+=($'\e[33m●\e[39m '"${(l:w:)num} -- ${title}  (@${author})")
+    other_nums+=("$num"); other_descs+=("${(l:w:)num} -- ${title}  (@${author})")
   fi
 done
 
 local expl
-_wanted open-prs expl 'Open PRs' compadd -d descs -a nums
+if (( $#mine_nums )); then
+  _wanted your-prs expl 'Your open PRs' compadd -d mine_descs -a mine_nums
+fi
+if (( $#other_nums )); then
+  _wanted other-prs expl "Others' open PRs" compadd -d other_descs -a other_nums
+fi
